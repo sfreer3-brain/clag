@@ -230,6 +230,7 @@ aside.side{width:352px;flex-shrink:0;background:var(--panel);border-left:1px sol
 .badge.vuoto{visibility:hidden}
 
 /* ---------- segnapunti ---------- */
+.grab{display:none}
 aside h3{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
   margin:16px 0 7px;font-weight:700}
 aside h3:first-child{margin-top:0}
@@ -300,7 +301,11 @@ table.final tr.me td{color:var(--gold);font-weight:700}
   html,body{height:auto}
   .app{height:auto;min-height:100dvh}
   main{flex-direction:column}
-  header.top{gap:8px;padding:6px 10px;position:sticky;top:0;z-index:20}
+  /* In alto può esserci la fotocamera (notch o foro): la barra si abbassa
+     di quanto serve, e il tavolo si accorcia di conseguenza perché l'altezza
+     della barra viene misurata, non supposta. */
+  header.top{gap:8px;padding:calc(6px + env(safe-area-inset-top,0px)) 10px 6px;
+    position:sticky;top:0;z-index:20}
   header.top .brand{font-size:17px;letter-spacing:2px}
   header.top .chip{font-size:12px;padding:2px 9px}
   header.top .btn.icon{display:inline-flex}
@@ -313,7 +318,9 @@ table.final tr.me td{color:var(--gold);font-weight:700}
   /* L'altezza della barra in alto cambia (chip che vanno a capo, schermo
      intero senza barre di sistema): la misura il codice e la scrive in
      --topH, così il tavolo finisce sempre esattamente a filo schermo. */
-  .tableWrap{min-height:calc(100dvh - var(--topH, 48px))}
+  /* Si lascia scoperta una striscia del segnapunti: così si capisce che
+     sotto c'è dell'altro, senza doverlo scoprire per caso. */
+  .tableWrap{min-height:calc(100dvh - var(--topH, 48px) - 58px)}
   .table{max-width:none;gap:6px;padding:9px 7px calc(4px + env(safe-area-inset-bottom,0px));scroll-margin-top:52px;
     grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto 1fr auto;
     grid-template-areas:"s1 s2 s3 s4" "top top top top" "center center center center" "bot bot bot bot"}
@@ -383,7 +390,15 @@ table.final tr.me td{color:var(--gold);font-weight:700}
   .mystat{display:inline-flex}
 
   aside.side{width:auto;max-height:none;border-left:none;border-top:1px solid var(--line);
-    padding:12px 10px calc(26px + env(safe-area-inset-bottom,0px))}
+    padding:4px 10px calc(26px + env(safe-area-inset-bottom,0px))}
+  /* maniglia: lineetta più triangolino, per dire "si tira su" */
+  .grab{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;
+    background:none;border:0;padding:5px 0 3px;cursor:pointer}
+  .grab .bar{width:42px;height:4px;border-radius:99px;background:#6f8497}
+  .grab .tri{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
+    border-bottom:6px solid #6f8497;opacity:.85;transition:transform .2s}
+  .grab.giu .tri{transform:rotate(180deg)}
+  aside h3:first-of-type{margin-top:2px}
   table.sheet{font-size:12px}
   table.sheet .mid{width:24px}
   table.sheet td,table.sheet th{padding:4px 0}
@@ -464,6 +479,9 @@ table.final tr.me td{color:var(--gold);font-weight:700}
     </div>
 
     <aside class="side" id="side">
+      <button class="grab" id="grabSide" type="button" aria-label="Apri o chiudi il segnapunti">
+        <span class="bar"></span><span class="tri"></span>
+      </button>
       <h3>Segnapunti</h3>
       <table class="sheet">
         <thead>
@@ -3464,6 +3482,25 @@ function misuraBarra() {
   const alt = Math.round(h.getBoundingClientRect().height);
   if (alt > 0) document.documentElement.style.setProperty('--topH', alt + 'px');
 }
+/* La maniglia del segnapunti: un tocco lo porta in vista, un altro riporta
+   al tavolo. Il triangolino si gira per dire in che verso si va. */
+function collegaManiglia() {
+  const g = document.getElementById('grabSide');
+  const side = document.getElementById('side');
+  if (!g || !side) return;
+  g.addEventListener('click', () => {
+    const aperto = side.getBoundingClientRect().top < window.innerHeight * 0.5;
+    if (aperto) window.scrollTo({ top: 0, behavior: 'smooth' });
+    else side.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  const aggiorna = () => {
+    const aperto = side.getBoundingClientRect().top < window.innerHeight * 0.5;
+    g.classList.toggle('giu', aperto);
+  };
+  window.addEventListener('scroll', aggiorna, { passive: true });
+  aggiorna();
+}
+
 function seguiBarra() {
   misuraBarra();
   window.addEventListener('resize', misuraBarra);
@@ -3472,8 +3509,8 @@ function seguiBarra() {
   if (h && typeof ResizeObserver !== 'undefined') new ResizeObserver(misuraBarra).observe(h);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); });
-else { boot(); seguiBarra(); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); collegaManiglia(); });
+else { boot(); seguiBarra(); collegaManiglia(); }
 </script>
 <script>
 if ('serviceWorker' in navigator) {

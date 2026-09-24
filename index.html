@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f5132">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CLAG">
@@ -300,8 +300,7 @@ table.final tr.me td{color:var(--gold);font-weight:700}
   html,body{height:auto}
   .app{height:auto;min-height:100dvh}
   main{flex-direction:column}
-  header.top{gap:8px;padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));
-    position:sticky;top:0;z-index:20}
+  header.top{gap:8px;padding:6px 10px;position:sticky;top:0;z-index:20}
   header.top .brand{font-size:17px;letter-spacing:2px}
   header.top .chip{font-size:12px;padding:2px 9px}
   header.top .btn.icon{display:inline-flex}
@@ -311,8 +310,11 @@ table.final tr.me td{color:var(--gold);font-weight:700}
 
   /* Il tavolo occupa tutto lo schermo: il segnapunti sta sotto e si raggiunge
      scorrendo, non ruba l'altezza alla mano. */
-  .tableWrap{min-height:calc(100dvh - 48px)}
-  .table{max-width:none;gap:6px;padding:9px 7px 4px;scroll-margin-top:52px;
+  /* L'altezza della barra in alto cambia (chip che vanno a capo, schermo
+     intero senza barre di sistema): la misura il codice e la scrive in
+     --topH, così il tavolo finisce sempre esattamente a filo schermo. */
+  .tableWrap{min-height:calc(100dvh - var(--topH, 48px))}
+  .table{max-width:none;gap:6px;padding:9px 7px calc(4px + env(safe-area-inset-bottom,0px));scroll-margin-top:52px;
     grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto 1fr auto;
     grid-template-areas:"s1 s2 s3 s4" "top top top top" "center center center center" "bot bot bot bot"}
   /* i quattro avversari diventano targhette compatte in una sola riga */
@@ -3447,11 +3449,31 @@ function boot() {
   }
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+/* --------------------------------------------------------------------------
+   Altezza reale della barra in alto.
+   Il tavolo deve stare in uno schermo esatto: se la barra va a capo, o se
+   l'app gira a schermo intero senza le barre di sistema, il valore fisso
+   sbagliava e le ultime carte finivano sotto il bordo. Qui si misura e si
+   pubblica in --topH.
+   -------------------------------------------------------------------------- */
+function misuraBarra() {
+  const h = document.querySelector('header.top');
+  if (!h) return;
+  const alt = Math.round(h.getBoundingClientRect().height);
+  if (alt > 0) document.documentElement.style.setProperty('--topH', alt + 'px');
+}
+function seguiBarra() {
+  misuraBarra();
+  window.addEventListener('resize', misuraBarra);
+  window.addEventListener('orientationchange', () => setTimeout(misuraBarra, 250));
+  const h = document.querySelector('header.top');
+  if (h && typeof ResizeObserver !== 'undefined') new ResizeObserver(misuraBarra).observe(h);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); });
+else { boot(); seguiBarra(); }
 </script>
 <script>
-/* registrazione del service worker: serve solo alla versione installabile */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* pazienza */ });

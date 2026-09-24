@@ -1,0 +1,3462 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f5132">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CLAG">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Tavolo CLAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Bitter:wght@600;700;800&display=swap">
+<style>
+/* ============================================================
+   CLAG — foglio di stile unico.
+   I font Google (Archivo + Bitter) sono un abbellimento opzionale:
+   senza connessione il browser usa i fallback di sistema indicati
+   in --fui / --fdisp e il gioco resta identico nel funzionamento.
+   ============================================================ */
+*{box-sizing:border-box}
+:root{
+  --felt1:#0f5132; --felt2:#08301f;
+  --bg:#10161c; --panel:#18222b; --panel2:#1f2b36;
+  --line:#2c3a47; --txt:#e8eef3; --dim:#9fb0be;
+  --gold:#e9c46a; --acc:#4cc9f0; --ok:#5ad07a; --bad:#ef6461;
+  --red:#c0392b; --black:#1b1f23;          /* colori canonici dei semi */
+  --shadow:0 6px 18px rgba(0,0,0,.35);
+  --fui:"Archivo","Segoe UI",Roboto,system-ui,-apple-system,Arial,sans-serif;
+  --fdisp:"Bitter",Georgia,"Times New Roman",serif;
+}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--fui);font-size:16px;line-height:1.45}
+button{font-family:inherit;font-size:14px;cursor:pointer}
+h1,h2,h3{margin:0 0 6px}
+
+/* ---------- struttura ---------- */
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:600px}
+header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header.top .brand{font-family:var(--fdisp);font-weight:800;letter-spacing:4px;color:var(--gold);font-size:22px}
+header.top .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+  padding:4px 13px;font-size:14px;white-space:nowrap;color:var(--dim)}
+header.top .chip b{color:var(--txt);font-weight:700}
+header.top .spacer{flex:1}
+header.top .cfg{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header.top .btn.icon{display:none;font-size:17px;padding:4px 11px;line-height:1.2}
+header.top label{font-size:13px;color:var(--dim);display:flex;align-items:center;gap:5px}
+header.top select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+  border-radius:6px;padding:4px 7px;font-size:13px}
+main{display:flex;flex:1;min-height:0}
+.tableWrap{flex:1;min-width:0;display:flex;flex-direction:column;
+  background:radial-gradient(ellipse at 50% 45%,var(--felt1),var(--felt2) 72%)}
+aside.side{width:352px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);
+  overflow:auto;padding:12px 12px 18px}
+
+/* ---------- tavolo ---------- */
+.table{flex:1;min-height:0;display:grid;gap:8px;padding:10px 10px 4px;
+  width:100%;max-width:1150px;margin:0 auto;
+  grid-template-columns:184px 1fr 184px;
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:"s2 top s3" "s1 center s4" "bot bot bot"}
+.center{grid-area:center;display:flex;align-items:center;justify-content:center;min-height:0}
+.bottom{grid-area:bot;display:flex;flex-direction:column;gap:5px;align-items:center;padding-bottom:6px}
+
+/* ---------- briscola in evidenza ---------- */
+.banner{grid-area:top;display:flex;justify-content:center;align-items:flex-start}
+.trumpbox{display:flex;align-items:center;gap:14px;padding:9px 18px 9px 10px;border-radius:16px;
+  background:rgba(0,0,0,.34);border:1px solid rgba(233,196,106,.5);
+  box-shadow:0 0 26px rgba(233,196,106,.16),var(--shadow)}
+.trumpbox.pending{border-style:dashed;border-color:rgba(255,255,255,.35);box-shadow:var(--shadow)}
+.tcard{width:72px;height:100px;border-radius:10px;background:linear-gradient(160deg,#fff,#eef1f4);
+  border:1px solid #b9c3cc;display:flex;align-items:center;justify-content:center;
+  font-size:54px;line-height:1;box-shadow:0 0 0 2px var(--gold),0 3px 10px rgba(0,0,0,.45)}
+.tcard.red{color:var(--red)} .tcard.black{color:var(--black)}
+.tcard.pending{background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.4);
+  color:#cfe6d6;font-size:34px;box-shadow:none}
+.tmeta{display:flex;flex-direction:column;gap:1px}
+.tlabel{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);font-weight:700}
+.tname{font-family:var(--fdisp);font-size:24px;font-weight:800;color:#fff;line-height:1.1}
+.tinfo{font-size:12.5px;color:#b9d7c4}
+
+/* ---------- tappeto ---------- */
+.felt{width:min(660px,97%);min-height:172px;padding:14px 22px;
+  border-radius:50%/42%;border:1px solid rgba(255,255,255,.12);
+  background:radial-gradient(ellipse at 50% 40%,rgba(255,255,255,.06),rgba(0,0,0,.16) 74%);
+  box-shadow:inset 0 0 44px rgba(0,0,0,.3);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.trickArea{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;min-height:120px;align-items:center}
+.felt.empty .trickArea{min-height:0}
+.played{display:flex;flex-direction:column;align-items:center;gap:5px}
+.played .who{font-size:12.5px;font-weight:700;color:#eaf6ee;max-width:96px;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.16);
+  border-radius:999px;padding:2px 10px}
+.played .who.me{background:rgba(76,201,240,.22);border-color:rgba(76,201,240,.6);color:#fff}
+.played.winner .who{background:rgba(233,196,106,.24);border-color:var(--gold);color:#fff}
+.played .tag2{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);
+  min-height:13px}
+.played.winner .tag2{color:var(--gold);font-weight:700}
+.trickInfo{font-size:13.5px;color:#dff3e6;text-align:center;min-height:19px}
+.trickInfo b{color:#fff}
+
+/* ---------- posti ---------- */
+.seat{background:rgba(6,18,13,.6);border:1px solid rgba(255,255,255,.15);
+  border-radius:13px;padding:9px 11px;box-shadow:var(--shadow);align-self:center}
+.seat.turn{border-color:var(--acc);box-shadow:0 0 0 2px rgba(76,201,240,.4),var(--shadow)}
+.seat.won{animation:seatWin .75s ease-out}
+@keyframes seatWin{
+  0%{box-shadow:0 0 0 0 rgba(233,196,106,.85),var(--shadow);border-color:var(--gold)}
+  60%{box-shadow:0 0 0 12px rgba(233,196,106,0),var(--shadow);border-color:var(--gold)}
+  100%{box-shadow:var(--shadow)}
+}
+@media (prefers-reduced-motion:reduce){.seat.won{animation:none;border-color:var(--gold)}}
+.seat .nm{font-weight:700;font-size:16px;display:flex;align-items:center;gap:6px;line-height:1.2}
+.seat .pers{font-size:11.5px;color:var(--dim);margin-bottom:6px}
+.seat .stat{display:flex;align-items:baseline;gap:5px;font-size:14px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.seat .stat b{color:var(--txt);font-size:17px;font-weight:700}
+.seat .pt{font-size:12.5px;color:var(--gold);margin-top:2px;font-variant-numeric:tabular-nums}
+.seat .short{display:none}
+.seat .bidok{color:var(--ok)} .seat .bidover{color:var(--bad)} .seat .bidunder{color:var(--txt)}
+.badge{font-size:10px;border-radius:5px;padding:2px 6px;background:#2c3a47;color:#cfe0ec;font-weight:700}
+.badge.d{background:#7b5cd6;color:#fff}
+.badge.b{background:var(--gold);color:#3a2c00}
+.backs{display:flex;margin-top:7px;min-height:24px}
+.backs .mini{width:16px;height:24px;border-radius:3px;margin-right:-6px;
+  background:repeating-linear-gradient(45deg,#31558f,#31558f 4px,#22406e 4px,#22406e 8px);
+  border:1px solid #14243d}
+.dbgcards{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;font-size:13px;font-weight:700}
+
+/* carta appena calata, mostrata nel riquadro del giocatore */
+.lastcard{display:flex;align-items:center;gap:7px;margin-top:7px}
+.lastcard .lc{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+.lastcard.lead .lc{color:var(--gold);font-weight:700}
+
+/* ---------- carte (semi nei colori canonici) ---------- */
+.card{width:78px;height:110px;border-radius:9px;background:linear-gradient(160deg,#fff,#eef1f4);
+  border:1px solid #b9c3cc;box-shadow:0 3px 9px rgba(0,0,0,.36);
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:5px 0;font-weight:800;user-select:none;transition:transform .12s}
+.card .r{font-family:var(--fdisp);font-size:20px;line-height:1}
+.card .big{font-size:46px;line-height:.9}        /* simbolo grande e leggibile */
+.card .r2{font-family:var(--fdisp);font-size:20px;line-height:1;transform:rotate(180deg)}
+.card.red{color:var(--red)} .card.black{color:var(--black)}
+.card.sm{width:70px;height:99px}
+.card.sm .r,.card.sm .r2{font-size:17px} .card.sm .big{font-size:41px}
+.card.xs{width:40px;height:56px;padding:2px 0;border-radius:6px}
+.card.xs .r,.card.xs .r2{font-size:11px} .card.xs .big{font-size:23px}
+.card.xs.trumpc{box-shadow:0 0 0 2px var(--gold),0 2px 5px rgba(0,0,0,.35)}
+.card.play{cursor:pointer;touch-action:manipulation}
+.card.play:hover{transform:translateY(-12px)}
+.card.play:active{transform:translateY(-8px)}
+.btn,.card{touch-action:manipulation}
+.card.no{opacity:.38;filter:grayscale(.7);cursor:not-allowed}
+.card.win{outline:3px solid var(--gold);outline-offset:2px}
+.card.trumpc{box-shadow:0 0 0 3px var(--gold),0 3px 8px rgba(0,0,0,.35)}
+
+/* ---------- zona umano ---------- */
+.msg{font-size:18px;font-weight:700;text-align:center;color:#fff;min-height:24px}
+.hint{font-size:13.5px;color:#c9e4d3;text-align:center;min-height:19px;transition:color .15s}
+.hint.warn{color:#ffd6a0;font-weight:700}
+.humanHand{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;min-height:114px;align-items:center}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;
+  min-height:38px;width:100%}
+.btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+  border-radius:8px;padding:8px 14px;font-weight:600}
+.btn:hover{background:#2a3a48}
+.btn.primary{background:var(--gold);color:#3a2c00;border-color:#c8a748;font-size:15px}
+.btn.primary:hover{background:#f0d281}
+.btn.suit .bnome{font-size:21px;font-weight:800;letter-spacing:.2px}
+.btn.suit{font-size:17px;padding:10px 12px;background:#fff;color:var(--black);border-color:#b9c3cc;
+  display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700}
+.btn.suit .bsym{font-size:34px;line-height:1}
+.btn.suit.red{color:var(--red)}
+/* Dichiarazione: bersagli grandi, si toccano una volta sola per mano. */
+.btn.bid{min-width:58px;min-height:58px;text-align:center;display:flex;align-items:center;justify-content:center;font-size:24px;font-family:var(--fdisp);
+  background:#fff;color:var(--black);border-color:#b9c3cc;font-weight:800;
+  font-weight:800;padding:6px 12px;line-height:1}
+.btn.bid:hover{background:#e9eef2;border-color:var(--acc)}
+.tag{color:#cfe6d6;font-size:13.5px}
+
+/* ---------- scheda Debug ---------- */
+.dtabs{display:flex;gap:6px;margin:14px 0 12px;border-bottom:1px solid var(--line)}
+.dtab{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);
+  font-family:inherit;font-size:14px;font-weight:700;padding:7px 12px;cursor:pointer}
+.dtab:hover{color:var(--txt)}
+.dtab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.lbstats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0 4px}
+@media (max-width:560px){.lbstats{grid-template-columns:repeat(2,1fr)}}
+.lbstats>div{background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+  padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.lbstats b{font-family:var(--fdisp);font-size:23px;color:var(--gold);line-height:1}
+.lbstats span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px}
+.dbtns{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0 6px}
+.btn.danger{border-color:#7d3b38;color:#ffb3ac}
+.btn.danger:hover{background:#5a2b28}
+.lbnote{font-size:12.5px;color:var(--acc);min-height:17px;line-height:1.5}
+.lbnote2{font-size:12.5px;color:var(--dim)}
+.warn2{color:#ffd6a0;font-size:12.5px}
+.lbtext{width:100%;height:200px;margin-top:8px;background:#0e1a14;color:#cfe6d6;
+  border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;
+  font-family:ui-monospace,Consolas,monospace;white-space:pre;overflow:auto}
+/* Sul telefono il riquadro del giocatore è nascosto: questa riga tiene comunque
+   sott'occhio la propria dichiarazione e le prese fatte. */
+.mystat{display:none;align-items:center;gap:8px;font-size:13.5px;color:#dff3e6;
+  background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.18);border-radius:999px;
+  padding:3px 13px;font-variant-numeric:tabular-nums}
+.mystat b{color:#fff;font-size:15px}
+.mystat .ok2{color:var(--ok)} .mystat .bad2{color:var(--bad)}
+.mystat .serve{border-left:1px solid rgba(255,255,255,.22);padding-left:9px;color:#fff;font-weight:700}
+
+/* ---------- fascia delle scelte (seme e dichiarazione) ----------
+   Una sola forma per le due domande del gioco: un'etichetta che dice cosa
+   stai scegliendo e una griglia di pulsanti tutti larghi uguale. */
+.ctit{font-size:12px;letter-spacing:.9px;text-transform:uppercase;color:var(--dim);
+  text-align:center;flex:1 1 100%;width:100%;margin-bottom:7px}
+.cgrid{display:grid;gap:9px;flex:1 1 100%;width:100%;max-width:520px;margin:0 auto}
+.c2{grid-template-columns:repeat(2,1fr)} .c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)} .c5{grid-template-columns:repeat(5,1fr)}
+.cgrid .btn{width:100%}
+
+/* corona di chi è in testa e riga riservata alle targhette: serve a tenere
+   tutti i riquadri della stessa altezza anche quando le targhette non ci sono */
+.crown{font-size:14px;line-height:1}
+.seat .brow{display:flex;justify-content:center;gap:4px;min-height:17px;margin-bottom:2px}
+.badge.vuoto{visibility:hidden}
+
+/* ---------- segnapunti ---------- */
+aside h3{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
+  margin:16px 0 7px;font-weight:700}
+aside h3:first-child{margin-top:0}
+table.sheet{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+table.sheet th{padding:3px 1px;text-align:center;font-weight:700;color:var(--dim);font-size:11px}
+table.sheet th.blk{color:var(--gold);font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;
+  padding-bottom:4px}
+table.sheet thead tr:last-child th{border-bottom:1px solid var(--line);padding-bottom:5px}
+table.sheet th.me{color:var(--acc)}
+table.sheet td{text-align:center;padding:4px 1px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--dim)}
+table.sheet .mid{width:30px;background:rgba(255,255,255,.05);color:var(--dim);font-weight:700;
+  border-left:1px solid var(--line);border-right:1px solid var(--line)}
+table.sheet tr.cur{background:rgba(233,196,106,.13)}
+table.sheet tr.cur .mid{color:var(--gold)}
+table.sheet td.mecol{background:rgba(76,201,240,.07)}
+table.sheet tr.cur td.mecol{background:rgba(76,201,240,.13)}
+table.sheet td.hit{color:var(--ok);font-weight:700}
+table.sheet td.miss{color:var(--bad);text-decoration:line-through}
+table.sheet td.bidnow{color:var(--gold);font-weight:700}
+table.sheet td.pts{color:var(--txt);font-weight:600}
+table.sheet tfoot td{border-top:2px solid var(--line);border-bottom:none;padding-top:6px;
+  font-weight:800;color:var(--txt);font-size:13.5px}
+table.sheet tfoot td.small{font-size:11.5px;font-weight:600;color:var(--dim)}
+table.sheet tfoot td.lead{color:var(--gold)}
+.legend{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.5}
+.legend b{color:var(--ok)} .legend i{color:var(--bad);font-style:normal}
+
+.logline{font-size:12.5px;padding:6px 2px;border-bottom:1px solid var(--line);color:var(--dim);
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.logline b{color:var(--txt)}
+.logline .tn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  min-width:20px;text-align:center;font-weight:700;color:var(--dim);font-size:11.5px;padding:0 4px}
+.logline .pl{white-space:nowrap}
+.logline .pl.win{color:var(--txt);font-weight:700}
+.logline .arrow{color:var(--dim)}
+.ci{font-weight:700;font-size:13.5px}
+.ci.strong{font-size:14.5px}
+.bluffnote{margin-top:5px;font-size:12px;color:var(--gold)}
+.dbg{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#a9d6b6;white-space:pre-wrap;
+  max-height:240px;overflow:auto;background:#0e1a14;border:1px solid var(--line);border-radius:6px;padding:7px}
+
+/* ---------- overlay ---------- */
+.ov{position:fixed;inset:0;background:rgba(5,10,8,.88);display:flex;align-items:center;
+  justify-content:center;z-index:50;padding:16px}
+.ov .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 28px;
+  max-width:660px;width:100%;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
+.ov h1{font-family:var(--fdisp);color:var(--gold);letter-spacing:4px;font-size:36px;text-wrap:balance}
+.ov p{color:var(--dim);font-size:14px}
+.ov .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.ov input,.ov select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;width:100%;font-size:15px}
+.ov label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px}
+.hidden{display:none!important}
+.rules{font-size:13px;color:var(--dim);max-height:200px;overflow:auto;border:1px solid var(--line);
+  border-radius:10px;padding:10px;margin-top:12px;line-height:1.6}
+.rules b{color:var(--txt)}
+table.final{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px;font-variant-numeric:tabular-nums}
+table.final th{color:var(--dim);font-size:11.5px;text-transform:uppercase;letter-spacing:1px;
+  text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+table.final td{padding:6px;border-bottom:1px solid var(--line)}
+table.final td.n{text-align:right}
+table.final tr.me td{color:var(--gold);font-weight:700}
+
+
+
+/* ---------- telefono / tablet in verticale ---------- */
+@media (max-width:860px){
+  html,body{height:auto}
+  .app{height:auto;min-height:100dvh}
+  main{flex-direction:column}
+  header.top{gap:8px;padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));
+    position:sticky;top:0;z-index:20}
+  header.top .brand{font-size:17px;letter-spacing:2px}
+  header.top .chip{font-size:12px;padding:2px 9px}
+  header.top .btn.icon{display:inline-flex}
+  header.top .cfg{display:none;width:100%;gap:10px;padding-top:7px;margin-top:2px;
+    border-top:1px solid var(--line)}
+  header#top.open .cfg{display:flex}
+
+  /* Il tavolo occupa tutto lo schermo: il segnapunti sta sotto e si raggiunge
+     scorrendo, non ruba l'altezza alla mano. */
+  .tableWrap{min-height:calc(100dvh - 48px)}
+  .table{max-width:none;gap:6px;padding:9px 7px 4px;scroll-margin-top:52px;
+    grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto 1fr auto;
+    grid-template-areas:"s1 s2 s3 s4" "top top top top" "center center center center" "bot bot bot bot"}
+  /* i quattro avversari diventano targhette compatte in una sola riga */
+  /* quattro caselle identiche: la riga delle targhette c'è sempre, anche
+     vuota, così "Mazziere" non allarga più un riquadro solo */
+  .seat{align-self:start;padding:5px 4px;border-radius:10px;text-align:center;
+    min-height:70px;max-height:78px;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-start;overflow:hidden}
+  .seat .brow{min-height:15px;margin-bottom:3px}
+  .seat .nm{font-size:13.5px;justify-content:center;gap:3px;flex-wrap:nowrap;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .crown{font-size:13px}
+  .seat .pers,.seat .backs{display:none}
+  /* La carta giocata sta gia' al centro, con il nome sopra: nei riquadri
+     sarebbe una ripetizione e ruberebbe l'altezza che serve alla mano. */
+  .lastcard{display:none}
+  .card.xs{width:34px;height:48px}
+  .card.xs .r,.card.xs .r2{font-size:9px} .card.xs .big{font-size:19px}
+  .seat .full{display:none} .seat .short{display:inline}
+  .seat .pt{display:none}                    /* il punteggio sta nel segnapunti qui sotto */
+  .seat .stat{justify-content:center;font-size:12.5px;gap:2px}
+  .seat .stat b{font-size:14px}
+  .seat .pt{font-size:11.5px;margin-top:0}
+  .badge{font-size:9px;padding:1px 4px}
+  .hideSelf{display:none}                    /* lo stato del giocatore è già nella riga dei suggerimenti */
+
+  /* Il cartello della briscola diventa una fascia sottile: serve sapere qual è,
+     non occupare mezzo schermo. */
+  .trumpbox{gap:9px;padding:5px 12px 5px 6px;border-radius:12px}
+  .tcard{width:40px;height:56px;font-size:29px}
+  .tname{font-size:23px} .tlabel{font-size:10px;letter-spacing:2px} .tinfo{font-size:10.5px}
+
+  /* La presa al centro è la cosa da leggere: carte grandi e nome sopra ognuna. */
+  .felt{width:100%;min-height:0;padding:9px 6px;border-radius:22px;gap:5px}
+  .felt.empty{padding:6px;min-height:0}
+  .trickArea{gap:5px;min-height:126px;flex-wrap:nowrap}
+  .felt.empty .trickArea{min-height:0;display:none}
+  .played{gap:4px;min-width:0}
+  .played .who{font-size:12px;max-width:none;padding:2px 7px;font-weight:700}
+  .played .tag2{font-size:9.5px;min-height:11px}
+  .trickInfo{font-size:12.5px}
+  .card.sm{width:60px;height:85px}
+  .card.sm .big{font-size:41px}.card.sm .r,.card.sm .r2{font-size:18px}
+
+  /* Le carte in mano restano le più grandi: se sono tante vanno a capo. */
+  .card{width:76px;height:107px}.card .big{font-size:52px}
+  .card .r,.card .r2{font-size:23px}
+  .card.play:hover{transform:translateY(-10px)}
+  .humanHand{gap:7px;min-height:110px}
+
+  .bottom{gap:3px}
+  .msg{font-size:16px;min-height:22px} .hint{font-size:12.5px;min-height:17px}
+  .actions{gap:8px;min-height:38px}
+  .btn.primary{font-size:15px;padding:10px 18px}
+  /* I due pulsanti di scelta: dentro devono leggersi da lontano. */
+  .ctit{font-size:11.5px;margin-bottom:8px}
+  .cgrid{gap:8px}
+  .btn.bid{min-width:0;width:100%;min-height:58px;font-size:30px;padding:4px}
+  .btn.suit{font-size:16px;padding:9px 6px;gap:9px;min-height:56px}
+  .btn.suit .bsym{font-size:36px}
+  .btn.suit .bnome{font-size:22px}
+  .mystat{font-size:14px;padding:4px 14px}
+  .mystat b{font-size:17px}
+  .mystat{display:inline-flex}
+
+  aside.side{width:auto;max-height:none;border-left:none;border-top:1px solid var(--line);
+    padding:12px 10px calc(26px + env(safe-area-inset-bottom,0px))}
+  table.sheet{font-size:12px}
+  table.sheet .mid{width:24px}
+  table.sheet td,table.sheet th{padding:4px 0}
+}
+@media (max-width:430px){
+  header.top .chip{font-size:11.5px;padding:2px 8px}
+  .card{width:70px;height:99px}.card .big{font-size:48px}
+  .card .r,.card .r2{font-size:21px}
+  .card.sm{width:55px;height:78px}
+  .card.sm .big{font-size:38px}.card.sm .r,.card.sm .r2{font-size:16px}
+  .trickArea{gap:3px;min-height:118px}
+  .played .who{font-size:11px;padding:1px 6px}
+  .seat .nm{font-size:11.5px}
+  .btn.bid{min-width:0;width:100%;min-height:54px;font-size:28px;padding:4px}
+  .btn.suit{padding:8px 4px;min-height:52px;gap:7px}
+  .btn.suit .bsym{font-size:33px} .btn.suit .bnome{font-size:20px}
+  .tinfo{display:none}
+}
+@media (max-width:360px){
+  .btn.bid{min-width:0;min-height:48px;font-size:25px}
+  .btn.suit .bsym{font-size:29px} .btn.suit .bnome{font-size:18px}
+  .card{width:62px;height:88px}.card .big{font-size:43px}
+  .card .r,.card .r2{font-size:19px}
+  .card.sm{width:48px;height:68px}.card.sm .big{font-size:34px}
+  .played .who{font-size:10px;padding:1px 4px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top" id="top">
+    <span class="brand">CLAG</span>
+    <span class="chip">Mano <b id="hHand">–</b>/14</span>
+    <span class="chip"><b id="hCards">–</b> carte</span>
+    <span class="chip">Presa <b id="hTrick">–</b></span>
+    <span class="spacer"></span>
+    <button class="btn icon" id="btnCfg" aria-expanded="false" aria-controls="cfgBox" title="Impostazioni">⚙</button>
+    <div class="cfg" id="cfgBox">
+      <label>Difficoltà
+        <select id="selDiff">
+          <option value="esperto">Esperto</option>
+          <option value="normale">Normale</option>
+        </select>
+      </label>
+      <label>Ritmo
+        <select id="selSpeed"><option value="1100">Lento</option><option value="650" selected>Normale</option><option value="220">Veloce</option></select>
+      </label>
+      <label><input type="checkbox" id="chkAuto" checked> Auto-avanza</label>
+      <label><input type="checkbox" id="chkDebug"> Ragionamento IA</label>
+      <button class="btn" id="btnDbgPanel">🛠 Debug</button>
+      <button class="btn" id="btnNewGame">Nuova partita</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tableWrap" id="tableWrap">
+      <div class="table" id="table">
+        <div class="seat" id="seat-2" style="grid-area:s2"></div>
+        <div class="banner" id="banner"></div>
+        <div class="seat" id="seat-3" style="grid-area:s3"></div>
+        <div class="seat" id="seat-1" style="grid-area:s1"></div>
+        <div class="center" id="center">
+          <div class="felt" id="felt">
+            <div class="trickArea" id="trickArea"></div>
+            <div class="trickInfo" id="trickInfo"></div>
+          </div>
+        </div>
+        <div class="seat" id="seat-4" style="grid-area:s4"></div>
+        <div class="bottom" id="bottom">
+          <div class="seat hideSelf" id="seat-0"></div>
+          <div class="mystat" id="myStat"></div>
+          <div class="msg" id="msg"></div>
+          <div class="hint" id="hint"></div>
+          <div class="humanHand" id="humanHand"></div>
+          <div class="actions" id="actions"></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side" id="side">
+      <h3>Segnapunti</h3>
+      <table class="sheet">
+        <thead>
+          <tr><th class="blk" colspan="5">Previsioni</th><th class="mid"></th><th class="blk" colspan="5">Punteggio</th></tr>
+          <tr id="sheetNames"></tr>
+        </thead>
+        <tbody id="sheetBody"></tbody>
+        <tfoot><tr id="sheetTot"></tr></tfoot>
+      </table>
+      <div class="legend"><b>verde</b> = previsione centrata · <i>rossa barrata</i> = sbagliata ·
+        colonna centrale = carte distribuite · riga <b style="color:#e8eef3">Σ</b> = previsioni centrate (sinistra) e punti totali (destra)</div>
+      <h3>Prese di questa mano</h3>
+      <div id="trickLog"></div>
+      <div id="dbgWrap" class="hidden"><h3>Debug IA</h3><div class="dbg" id="dbg"></div></div>
+    </aside>
+  </main>
+</div>
+
+
+
+<!-- schermata iniziale -->
+<div class="ov" id="ovStart">
+  <div class="box">
+    <h1>CLAG</h1>
+    <p>Variante italiana a 40 carte · 14 mani · 5 giocatori. Dichiara le prese e centrale esattamente: sbagliare di una vale zero.</p>
+    <div class="grid">
+      <div><label>Il tuo nome</label><input type="text" id="inName" value="Tu" maxlength="12"></div>
+      <div><label>Difficoltà IA</label><select id="inDiff">
+          <option value="esperto">Esperto — CPU al massimo</option>
+          <option value="normale">Normale — qualche errore</option>
+        </select></div>
+      <div><label>CPU 1 (prudente)</label><input type="text" id="inC1" value="Ada" maxlength="12"></div>
+      <div><label>CPU 2 (aggressiva)</label><input type="text" id="inC2" value="Bruno" maxlength="12"></div>
+      <div><label>CPU 3 (bilanciata)</label><input type="text" id="inC3" value="Cleo" maxlength="12"></div>
+      <div><label>CPU 4 (opportunista)</label><input type="text" id="inC4" value="Dario" maxlength="12"></div>
+      <div>
+        <label>Mazziere della prima mano</label>
+        <select id="inDealer">
+          <option value="random" selected>Casuale</option>
+          <option value="0">Tu</option>
+          <option value="1">Ada</option>
+          <option value="2">Bruno</option>
+          <option value="3">Cleo</option>
+          <option value="4">Dario</option>
+        </select>
+      </div>
+      <div>
+        <label>Stile delle CPU</label>
+        <select id="inBluff">
+          <option value="1" selected>Possono bluffare</option>
+          <option value="0">Sempre sincere</option>
+        </select>
+      </div>
+    </div>
+    <p id="dealerNote" style="margin:-4px 0 10px;font-size:12.5px">La briscola la sceglie il giocatore alla sinistra del mazziere, che apre anche la prima presa.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="btnStart">Inizia la partita</button>
+      <button class="btn" id="btnRules">Regole</button>
+      <button class="btn hidden" id="btnInstall">📲 Installa sul telefono</button>
+    </div>
+    <div class="rules hidden" id="rulesBox">
+      <b>Mazzo</b>: 40 carte (senza 8, 9, 10). Forza: A &gt; 3 &gt; K &gt; Q &gt; J &gt; 7 &gt; 6 &gt; 5 &gt; 4 &gt; 2. I punti della briscola non contano.<br>
+      <b>Mani</b>: 14 mani con 1,2,3,4,5,6,7,7,6,5,4,3,2,1 carte. Il mazziere ruota in senso orario.<br>
+      <b>Briscola</b>: la sceglie il giocatore alla sinistra del mazziere, che apre anche la prima presa.<br>
+      <b>Dichiarazioni</b>: si parte dalla sinistra di chi ha scelto la briscola; chi ha scelto dichiara per ultimo. Nessun vincolo sulla somma.<br>
+      <b>Gioco</b>: obbligo di rispondere al seme; senza seme si può tagliare o scartare. Vince la briscola più alta, altrimenti la carta più alta del seme di partenza.<br>
+      <b>Punteggio</b>: previsione esatta = 10 punti + 2 per ogni presa; previsione errata = 0.
+    </div>
+  </div>
+</div>
+
+<!-- schermata finale -->
+<div class="ov hidden" id="ovEnd"><div class="box" id="endBox"></div></div>
+
+<!-- scheda Debug: registro delle partite e ragionamento delle CPU -->
+<div class="ov hidden" id="ovDbg"><div class="box" id="dbgBox"></div></div>
+
+<script>
+/* ==========================================================================
+   CLAG — Motore di gioco (regole pure, nessuna dipendenza dal DOM)
+   --------------------------------------------------------------------------
+   Blocco 1/4 : Card, Deck, regole delle prese, punteggio, stato partita.
+   ========================================================================== */
+'use strict';
+
+/* ------------------------------ Costanti ------------------------------ */
+
+/** I quattro semi. */
+const SUITS = ['C', 'Q', 'F', 'P'];
+/* Colori canonici: cuori e quadri rossi, fiori e picche neri.
+   `color` è la classe applicata alla carta, `dark` la tinta leggibile
+   sui fondi scuri (tappeto e pannelli). */
+const SUIT_INFO = {
+  C: { name: 'Cuori',   sym: '♥', color: 'red',   dark: '#ff9a8a' },
+  Q: { name: 'Quadri',  sym: '♦', color: 'red',   dark: '#ff9a8a' },
+  F: { name: 'Fiori',   sym: '♣', color: 'black', dark: '#e6edf3' },
+  P: { name: 'Picche',  sym: '♠', color: 'black', dark: '#e6edf3' }
+};
+
+/** Gerarchia dalla più FORTE alla più DEBOLE (mazzo da 40: niente 8, 9, 10). */
+const RANKS = ['A', '3', 'K', 'Q', 'J', '7', '6', '5', '4', '2'];
+
+/** Carte distribuite mano per mano: 1..7 poi 7..1 = 14 mani. */
+const HAND_SIZES = [1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1];
+
+const NUM_PLAYERS = 5;
+
+/* --------------------------- Personalità delle CPU ---------------------------
+   Tutte e quattro calcolano allo stesso modo; quello che cambia è come
+   traducono il calcolo in una decisione. Oltre alla propensione al rischio
+   ciascuna ha due tratti che la rendono viva al tavolo:
+
+     slip  — la distrazione. Una persona che ha già fatto le prese che aveva
+             dichiarato, ogni tanto smette di guardare e gioca una carta che
+             le regala una presa in più. Nei registri delle partite vere è la
+             cosa che distingue di più una persona da un motore, e finora le
+             CPU non la facevano mai.
+     tilt  — la reazione alla mano precedente. Chi ha appena sbagliato una
+             previsione tende ad alzare (o ad abbassare) la successiva.
+
+   `guarda` marca il giocatore che resta puro calcolo, senza tratti umani:
+   serve come metro di paragone stabile.                                      */
+const PERSONALITIES = {
+  prudente: {
+    key: 'prudente', label: 'Prudente',
+    bidSlope: -0.075,   // penalizza le dichiarazioni alte
+    aggression: 0.75,   // <1 = risparmia le briscole alte
+    trumpBias: -0.30,   // preferisce briscole "sicure" a dichiarazioni ambiziose
+    avoidBias: 1.25,    // molto attenta a non fare prese extra
+    bluff: 0.05,        // quasi mai depista gli avversari
+    slip: 0.02,         // si distrae pochissimo
+    tilt: -0.20,        // dopo un errore si chiude ancora di più
+    trumpLead: 0.00,    // non apre mai di briscola per scelta
+    think: 1.15,        // si prende il suo tempo
+    guasto: 0.70,       // mano bruciata: decide una volta, e se disturba lo fa fino in fondo
+    lettura: 1.0,       // legge le dichiarazioni del tavolo, con misura
+    varia: 0.15         // quasi sempre apre con la stessa carta
+  },
+  aggressiva: {
+    key: 'aggressiva', label: 'Aggressiva',
+    bidSlope: +0.075, aggression: 1.30, trumpBias: +0.35, avoidBias: 0.85,
+    bluff: 0.24,
+    slip: 0.09,         // gioca di slancio: è quella che si distrae di più
+    tilt: +0.35,        // dopo un errore rilancia
+    trumpLead: 0.30,    // le piace tirare fuori le briscole alte
+    think: 0.80,        // decide in fretta, a volte troppo
+    guasto: 1.00,       // mano bruciata? allora rovina la mano a qualcun altro, fino in fondo
+    varia: 0.45         // apre in modo imprevedibile
+  },
+  bilanciata: {
+    key: 'bilanciata', label: 'Bilanciata',
+    bidSlope: 0.0, aggression: 1.0, trumpBias: 0.0, avoidBias: 1.0,
+    bluff: 0.12,
+    slip: 0.05, tilt: +0.15, trumpLead: 0.10,
+    think: 1.00, guasto: 0.85, varia: 0.30,
+    lettura: 3.0        // si fida molto di quello che sente dichiarare al tavolo
+  },
+  opportunista: {
+    key: 'opportunista', label: 'Opportunista',
+    bidSlope: 0.0, aggression: 1.05, trumpBias: 0.05, avoidBias: 1.05,
+    readsTable: true,   // pesa molto le dichiarazioni già fatte dagli avversari
+    bluff: 0.30,        // depista spesso: è il suo modo di rompere le previsioni altrui
+    slip: 0.00, tilt: 0.00, trumpLead: 0.00,
+    think: 1.45,        // è quello che ci pensa di più
+    guasto: 1.00,       // e quando non può più centrare, gioca per far sbagliare gli altri
+    varia: 0.20,
+    guarda: true        // il calcolatore puro: nessun tratto umano, metro di paragone
+  }
+};
+
+/* -------------------------------- Card -------------------------------- */
+
+class Card {
+  constructor(suit, rank) {
+    this.suit = suit;
+    this.rank = rank;
+    this.id = suit + rank;
+    this.strength = RANKS.length - RANKS.indexOf(rank); // A=10 … 2=1
+  }
+  get label() { return this.rank + SUIT_INFO[this.suit].sym; }
+  toString() { return this.label; }
+}
+
+/** Forza assoluta della carta (indipendente dalla briscola): A=10 … 2=1. */
+function getCardStrength(card) { return RANKS.length - RANKS.indexOf(card.rank); }
+
+/** Mazzo completo da 40 carte. */
+function createDeck() {
+  const d = [];
+  for (const s of SUITS) for (const r of RANKS) d.push(new Card(s, r));
+  return d;
+}
+
+/* --------------------------- Numeri casuali --------------------------- */
+/* RNG seedabile: serve ai test e alle simulazioni riproducibili.          */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let RNG = Math.random;
+function setRng(fn) { RNG = fn || Math.random; }
+
+/** Mescola in place (Fisher–Yates). */
+function shuffleDeck(deck, rng) {
+  const r = rng || RNG;
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = (r() * (i + 1)) | 0;
+    const t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+  }
+  return deck;
+}
+
+/**
+ * Distribuisce `count` carte a ciascuno dei `players` giocatori.
+ * Le carte non distribuite restano nel mazzo (non entrano in gioco).
+ */
+function dealCards(deck, players, count) {
+  let k = 0;
+  const hands = [];
+  for (let p = 0; p < players; p++) hands.push([]);
+  for (let c = 0; c < count; c++) {
+    for (let p = 0; p < players; p++) hands[p].push(deck[k++]);
+  }
+  return { hands, rest: deck.slice(k) };
+}
+
+/* ------------------------- Regole delle prese ------------------------- */
+
+/**
+ * Valore di gioco di una carta all'interno della presa corrente:
+ * briscola 200+forza, seme di partenza 100+forza, scarto 0+forza.
+ */
+function playValue(card, ledSuit, trump) {
+  const base = card.suit === trump ? 200 : (card.suit === ledSuit ? 100 : 0);
+  return base + card.strength;
+}
+
+/** >0 se a batte b, <0 se b batte a (mai 0: non esistono carte identiche). */
+function compareCards(a, b, ledSuit, trump) {
+  return playValue(a, ledSuit, trump) - playValue(b, ledSuit, trump);
+}
+
+/** Indice (nel tavolo) del giocatore che vince la presa. */
+function determineTrickWinner(plays, ledSuit, trump) {
+  let best = plays[0];
+  for (let i = 1; i < plays.length; i++) {
+    if (compareCards(plays[i].card, best.card, ledSuit, trump) > 0) best = plays[i];
+  }
+  return best.player;
+}
+
+/** Indice dentro l'array `plays` della giocata attualmente vincente. */
+function bestPlayIndex(plays, ledSuit, trump) {
+  let bi = 0;
+  for (let i = 1; i < plays.length; i++) {
+    if (compareCards(plays[i].card, plays[bi].card, ledSuit, trump) > 0) bi = i;
+  }
+  return bi;
+}
+
+/**
+ * Carte giocabili: obbligo di rispondere al seme di partenza se lo si possiede;
+ * altrimenti qualsiasi carta (taglio con briscola o scarto).
+ */
+function getLegalCards(hand, ledSuit) {
+  if (!ledSuit) return hand.slice();
+  const same = hand.filter(c => c.suit === ledSuit);
+  return same.length ? same : hand.slice();
+}
+
+/* ------------------------------ Punteggio ----------------------------- */
+
+/**
+ * Sistemi di punteggio selezionabili. `exact(prese, carteDellaMano)` è il premio
+ * quando la previsione è centrata, `miss(prese)` quello che resta se è sbagliata.
+ * Il classico è il regolamento originale; gli altri correggono due squilibri
+ * misurati: le mani corte pagano quanto le lunghe e l'ambizione rende poco.
+ */
+const SCORING = {
+  classico:     { label: 'Classico — 10 + 2 a presa',
+                  exact: (b) => 10 + 2 * b,      miss: () => 0 },
+  ambizioso:    { label: 'Ambizioso — 10 + 5 a presa',
+                  exact: (b) => 10 + 5 * b,      miss: () => 0 },
+  proporzional: { label: 'Proporzionale — 5 + carte + 2 a presa',
+                  exact: (b, n) => 5 + n + 2 * b, miss: () => 0 },
+  completo:     { label: 'Proporzionale e ambizioso — 5 + carte + 5 a presa',
+                  exact: (b, n) => 5 + n + 5 * b, miss: () => 0 }
+};
+
+/** Premio per una previsione centrata, secondo il sistema attivo. */
+function exactReward(bid, cardsPerHand) {
+  const r = SCORING[G.scoring] || SCORING.classico;
+  return r.exact(bid, cardsPerHand == null ? G.cardsPerHand : cardsPerHand);
+}
+
+/** Punti di una singola mano con il sistema di punteggio attivo. */
+function scorePlayerHand(bid, tricks, cardsPerHand) {
+  const r = SCORING[G.scoring] || SCORING.classico;
+  return bid === tricks ? exactReward(bid, cardsPerHand) : r.miss(tricks, bid);
+}
+
+/** Applica il punteggio a tutti i giocatori e restituisce il dettaglio. */
+function scoreHand(players) {
+  /* la memoria del tavolo (credibilità di chi dichiara, rancore verso chi
+     ti ha rovinato la mano) si aggiorna qui, a mano finita */
+  if (typeof aggiornaMemoria === 'function') {
+    aggiornaMemoria(players.map(p => p.bid), players.map(p => p.tricks));
+  }
+  return players.map(p => {
+    const pts = scorePlayerHand(p.bid, p.tricks, G.cardsPerHand);
+    p.score += pts;
+    return { name: p.name, bid: p.bid, tricks: p.tricks, pts, exact: p.bid === p.tricks };
+  });
+}
+
+/* ------------------------- Rotazioni del tavolo ----------------------- */
+
+const nextSeat = i => (i + 1) % NUM_PLAYERS;                    // senso orario
+/** Mazziere della mano n (0-based) a partire dal mazziere iniziale. */
+const dealerOfHand = (start, handIndex) => (start + handIndex) % NUM_PLAYERS;
+/** Chi sceglie la briscola: il giocatore alla sinistra del mazziere. */
+const trumpChooserOf = dealer => nextSeat(dealer);
+/** Ordine delle dichiarazioni: si parte a sinistra di chi ha scelto, lui dichiara per ultimo. */
+function biddingOrder(chooser) {
+  const o = [];
+  for (let i = 1; i <= NUM_PLAYERS; i++) o.push((chooser + i) % NUM_PLAYERS);
+  return o; // l'ultimo elemento è `chooser`
+}
+/** Ordine di gioco di una presa a partire dal primo di mano. */
+function playOrder(leader) {
+  const o = [];
+  for (let i = 0; i < NUM_PLAYERS; i++) o.push((leader + i) % NUM_PLAYERS);
+  return o;
+}
+
+/* ------------------------------ Giocatore ----------------------------- */
+
+class Player {
+  constructor(index, name, isHuman, personalityKey) {
+    this.index = index;
+    this.name = name;
+    this.isHuman = isHuman;
+    this.pers = isHuman ? PERSONALITIES.bilanciata : PERSONALITIES[personalityKey];
+    this.hand = [];
+    this.bid = null;
+    this.tricks = 0;
+    this.score = 0;
+    this.handResults = [];
+    this.bluffInfo = null;      // depistaggio dichiarato in questa mano, se c'è stato
+  }
+  resetHand() { this.hand = []; this.bid = null; this.tricks = 0; this.bluffInfo = null; }
+}
+
+/* ------------------------------- Stato -------------------------------- */
+
+/** Stato globale della partita (istanza unica: `G`). */
+const G = {
+  players: [],
+  startDealer: 4,       // mazziere della prima mano (impostabile o casuale)
+  handIndex: 0,          // 0..13
+  cardsPerHand: 0,
+  dealer: 0,
+  chooser: 0,
+  trump: null,
+  phase: 'idle',         // idle | trump | bidding | playing | trickEnd | handEnd | gameEnd
+  trick: { leader: 0, plays: [], ledSuit: null },
+  trickNo: 0,            // prese già completate nella mano
+  playedCards: [],       // tutte le carte viste nella mano corrente
+  voids: [],             // voids[p][suit] = true se p ha mostrato di non avere quel seme
+  trickLog: [],
+  handLog: [],
+  difficulty: 'esperto',
+  scoring: 'classico',  // sistema di punteggio attivo (vedi SCORING)
+  bluff: true,          // le CPU possono depistare su briscola e dichiarazione
+  debug: false,
+  speed: 650,
+  auto: true,
+  debugLines: [],
+  running: false
+};
+
+function emptyVoids() {
+  const v = [];
+  for (let i = 0; i < NUM_PLAYERS; i++) v.push({ C: false, Q: false, F: false, P: false });
+  return v;
+}
+
+function dbg(line) {
+  G.debugLines.push(line);
+  if (G.debugLines.length > 220) G.debugLines.shift();
+  if (G.debug && typeof renderDebug === 'function') renderDebug();
+}
+/* ==========================================================================
+   CLAG — AIEngine
+   --------------------------------------------------------------------------
+   Blocco 2/4 : euristiche di valutazione, politica di gioco, Monte Carlo
+   per scelta briscola, dichiarazione e scelta della carta.
+
+   Idea centrale: nel CLAG non vince chi fa più prese, ma chi ne fa
+   ESATTAMENTE quante ne ha dichiarate. Quindi ogni decisione della CPU è
+   valutata con una sola metrica: P(prese finali == dichiarazione), pesata
+   dal punteggio ottenibile (10 + 2·prese).
+   ========================================================================== */
+
+/* --------------------- Parametri per livello di difficoltà ---------------------
+   Per aumentare la profondità dell'IA basta alzare questi numeri: sono i
+   "budget" di simulazioni. Valori più alti = gioco più forte ma più lento.   */
+const DIFF = {
+  esperto:     { bidBase: 3200, trumpBase: 1400, cardBase: 3000, noise: 0.00, budget: 900, minSims: 60 },
+  normale:     { bidBase: 380,  trumpBase: 150,  cardBase: 320,  noise: 0.22, budget: 220, minSims: 16 }
+};
+const cfg = () => DIFF[G.difficulty] || DIFF.esperto;
+
+/** Il depistaggio si può spegnere dalla schermata iniziale. */
+const bluffEnabled = () => G.bluff;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ======================================================================
+   1) EURISTICHE DI VALUTAZIONE DELLA MANO
+   ====================================================================== */
+
+/**
+ * Stima (in prese attese) la forza di una mano dato un seme di briscola.
+ * Tiene conto di: qualità delle briscole, carte alte fuori briscola,
+ * vuoti e semi corti (possibilità di taglio), lunghezza della mano.
+ */
+function handStrengthEstimate(hand, trump) {
+  let e = 0;
+  const trumps = hand.filter(c => c.suit === trump).sort((a, b) => b.strength - a.strength);
+
+  trumps.forEach((c, i) => {
+    if (c.strength >= 10) e += 0.95;       // A di briscola: presa quasi certa
+    else if (c.strength >= 9) e += 0.85;   // 3
+    else if (c.strength >= 8) e += 0.72;   // K
+    else if (c.strength >= 7) e += 0.52;   // Q
+    else if (c.strength >= 6) e += 0.36;   // J
+    else e += Math.max(0.08, 0.30 - 0.04 * i); // briscole basse: valore di taglio
+  });
+
+  for (const s of SUITS) {
+    if (s === trump) continue;
+    const cs = hand.filter(c => c.suit === s).sort((a, b) => b.strength - a.strength);
+    cs.forEach((c, i) => {
+      if (c.strength === 10) e += (i === 0 ? 0.70 : 0.45);      // A
+      else if (c.strength === 9) e += (cs.length >= 2 ? 0.45 : 0.30); // 3
+      else if (c.strength === 8) e += 0.22;                      // K
+      else if (c.strength === 7) e += 0.10;                      // Q
+    });
+    if (trumps.length > 0 && hand.length >= 3) {
+      if (cs.length === 0) e += Math.min(0.55, 0.28 * trumps.length);       // vuoto = taglio
+      else if (cs.length === 1) e += Math.min(0.32, 0.15 * trumps.length);  // singolo
+    }
+  }
+  return clamp(e, 0, hand.length);
+}
+
+/** Dichiarazione "di prima approssimazione": serve a orientare il Monte Carlo. */
+function quickBidHeuristic(hand, trump, cph) {
+  return clamp(Math.round(handStrengthEstimate(hand, trump)), 0, cph);
+}
+
+/**
+ * Modello della dichiarazione di un avversario che non ha ancora parlato.
+ * Un giocatore forte dichiara più basso della stima grezza: il punteggio
+ * premia la precisione, non il numero di prese, quindi le dichiarazioni
+ * caute hanno probabilità di riuscita molto più alta. Il fattore è tarato
+ * sulla dichiarazione media osservata in migliaia di mani simulate.
+ */
+function modelOpponentBid(hand, trump, cph) {
+  return clamp(Math.round(handStrengthEstimate(hand, trump) * 0.62), 0, cph);
+}
+
+/* ======================================================================
+   2) POLITICA DI GIOCO (usata sia dalle simulazioni sia come fallback)
+   ======================================================================
+   Non "gioca la più alta" né "la più bassa": decide in base alla distanza
+   dall'obiettivo dichiarato e al costo della carta.                        */
+
+const byStr = arr => arr.slice().sort((a, b) => a.strength - b.strength);
+
+/**
+ * Sceglie una carta in modo euristico ma sensato.
+ * @param hand        carte in mano
+ * @param ledSuit     seme di partenza (null se sta aprendo)
+ * @param trump       seme di briscola
+ * @param plays       giocate già effettuate nella presa
+ * @param bid         prese dichiarate
+ * @param tricksWon   prese già fatte
+ * @param playersAfter quanti giocheranno dopo di lui in questa presa
+ * @param pers        personalità (aggression, avoidBias…)
+ */
+function policyChooseCard(hand, ledSuit, trump, plays, bid, tricksWon, playersAfter, pers, tavolo) {
+  const legal = getLegalCards(hand, ledSuit);
+  if (legal.length === 1) return legal[0];
+  const P = pers || PERSONALITIES.bilanciata;
+
+  const cardsLeft = hand.length;
+  const need = (bid == null ? cardsLeft : bid) - tricksWon; // prese ancora da fare
+
+  /* --- Mano bruciata: da qui in poi il proprio segno è zero comunque, e
+     l'unica cosa che porta punti è far sbagliare gli altri. Non è un tratto
+     di colore: è il gioco corretto, ed è anche quello che fa una persona al
+     tavolo. Serve sapere chi, al tavolo, ha ancora prese da fare.          */
+  const bruciato = bid != null && (need < 0 || need > cardsLeft);
+  if (bruciato && tavolo && tavolo.bids && G.disturbo !== false) {
+    const affamato = i => tavolo.bids[i] != null && (tavolo.bids[i] - tavolo.tricks[i]) > 0;
+    let cercaPreda = false;
+    for (let i = 0; i < NUM_PLAYERS; i++) if (i !== tavolo.me && affamato(i)) { cercaPreda = true; break; }
+    const isTr = c => c.suit === trump;
+    if (plays.length === 0) {
+      /* Se al tavolo c'è chi ha ancora bisogno di prese, gliele porto via
+         uscendo forte. Se invece sono tutti a posto o in eccesso, esco basso
+         così la presa va a qualcuno che non la vuole. */
+      const ord = byStr(legal);
+      return cercaPreda ? ord[ord.length - 1] : ord[0];
+    }
+    const biIdx = bestPlayIndex(plays, ledSuit, trump);
+    const capo = plays[biIdx].player;
+    const vincenti = legal.filter(c => compareCards(c, plays[biIdx].card, ledSuit, trump) > 0);
+    const perdenti = legal.filter(c => compareCards(c, plays[biIdx].card, ledSuit, trump) <= 0);
+    if (affamato(capo) && vincenti.length) {
+      /* la presa sta andando a chi ne ha bisogno: gliela strappo, al minimo costo */
+      const noTr = byStr(vincenti.filter(c => !isTr(c)));
+      return noTr.length ? noTr[0] : byStr(vincenti)[0];
+    }
+    if (perdenti.length) {
+      /* la presa va a chi non la vuole: lasciagliela e liberati della carta
+         alta che altrimenti ti costringerebbe a prendere più avanti */
+      const noTr = byStr(perdenti.filter(c => !isTr(c)));
+      const ord = noTr.length ? noTr : byStr(perdenti);
+      return ord[ord.length - 1];
+    }
+    return byStr(legal)[0];
+  }
+
+  const wantWin = need > 0;
+  const mustWinAll = need >= cardsLeft;      // deve vincere tutte le rimanenti
+  const isTrump = c => c.suit === trump;
+  const notTrump = c => c.suit !== trump;
+
+  /* --- Apertura: nessuna carta ancora sul tavolo --- */
+  if (plays.length === 0) {
+    const trumps = byStr(legal.filter(isTrump));
+    const others = byStr(legal.filter(notTrump));
+    if (wantWin) {
+      const topT = trumps.length ? trumps[trumps.length - 1] : null;
+      const topO = others.length ? others[others.length - 1] : null;
+      if (mustWinAll) return topT || topO;
+
+      /* Aprire di briscola.
+         La vecchia regola usciva con qualunque briscola dal 3 in su per
+         "prosciugare" gli avversari. Misurato su 900.000 mani, è la perdita
+         più grossa di tutta la politica: aprendo di briscola obblighi tutti a
+         rispondere a briscola, e chi ha la carta più alta te la mangia subito.
+         Con il 3 in mano, da solo, centri la dichiarazione il 57% delle volte
+         uscendo di briscola e il 72% uscendo laterale.
+         Restano due casi in cui aprire di briscola conviene davvero:
+           · hai l'asso — nessuno te lo prende, e apri senza regalare niente;
+           · la mano è quasi tutta briscole — lì le prese devi farle proprio
+             con quelle, e prosciugare gli altri ha senso.                    */
+      const dominante = trumps.length >= 2 && trumps.length >= cardsLeft - 1;
+      if (topT && topT.strength >= 10 && (trumps.length === 1 || dominante)) return topT;
+      if (topT && dominante) return topT;
+
+      // Asso (o 3 accompagnato) fuori briscola: presa a costo zero di briscola
+      if (topO && topO.strength >= 10) return topO;
+      if (topO && topO.strength >= 9) return topO;
+      return topO || topT;
+    }
+    // Vuole PERDERE la presa: apre bassissimo, mai di briscola se può evitarlo
+    if (others.length) {
+      // preferisce il seme dove ha la carta più bassa in assoluto
+      return others[0];
+    }
+    return trumps[0];
+  }
+
+  /* --- Risposta: c'è già almeno una carta sul tavolo --- */
+  const bi = bestPlayIndex(plays, ledSuit, trump);
+  const bestCard = plays[bi].card;
+  const beatsIt = c => compareCards(c, bestCard, ledSuit, trump) > 0;
+  const winners = legal.filter(beatsIt);
+  const losers = legal.filter(c => !beatsIt(c));
+
+  if (wantWin) {
+    if (winners.length) {
+      const inSuit = byStr(winners.filter(notTrump));
+      const tr = byStr(winners.filter(isTrump));
+      // 1) vincere "di colore" costa meno che tagliare
+      if (inSuit.length) {
+        // se non è urgente e restano avversari, prendi comunque al minimo costo
+        return inSuit[0];
+      }
+      // 2) taglio: le CPU prudenti evitano di bruciare briscole alte troppo presto
+      if (!mustWinAll && losers.length && playersAfter > 0 &&
+          tr.length && tr[0].strength >= 8 && P.aggression < 1.0) {
+        return byStr(losers)[0];
+      }
+      return tr[0]; // taglia con la briscola più bassa sufficiente
+    }
+    // non può vincere: scarta il più basso, conservando le briscole
+    const nt = byStr(losers.filter(notTrump));
+    return nt.length ? nt[0] : byStr(losers)[0];
+  }
+
+  /* --- Deve EVITARE la presa --- */
+  if (losers.length) {
+    // scarica la carta più alta che comunque non vince (liberarsi dei "pericoli")
+    const nt = byStr(losers.filter(notTrump));
+    if (nt.length) {
+      // con avversari ancora da giocare, scaricare alto è sicuro: la presa è già persa
+      const risky = nt[nt.length - 1];
+      return (playersAfter === 0 || P.avoidBias >= 1) ? risky : nt[0];
+    }
+    const t = byStr(losers);
+    return t[t.length - 1];
+  }
+  // costretto a vincere: spreca il meno possibile
+  const w = byStr(winners);
+  const ntw = w.filter(notTrump);
+  return ntw.length ? ntw[0] : w[0];
+}
+
+/* ======================================================================
+   3) CAMPIONAMENTO DEI MONDI POSSIBILI
+   ====================================================================== */
+
+/**
+ * Distribuisce le carte non viste agli avversari rispettando:
+ *  - il numero di carte che ciascuno ha ancora in mano;
+ *  - i vuoti di seme già rivelati (chi non ha risposto a un seme non lo ha).
+ * Le carte in eccedenza rappresentano il mazzo non distribuito.
+ */
+/**
+ * Quanto "tira" ciascun giocatore, letto dalle dichiarazioni: chi deve ancora
+ * fare molte prese rispetto alle carte che gli restano ha probabilmente carte
+ * forti; chi ha dichiarato poco, carte deboli. Restituisce un numero per
+ * giocatore, 0 = nessuna informazione.
+ */
+function readBias(bids, tricks, needs, me) {
+  const bias = new Array(NUM_PLAYERS).fill(0);
+  for (let i = 0; i < NUM_PLAYERS; i++) {
+    if (i === me || needs[i] <= 0 || bids[i] == null) continue;
+    const restano = Math.max(0, bids[i] - tricks[i]);
+    bias[i] = clamp((restano / needs[i] - 0.2) * 2, -0.9, 1.6) * creditoDi(i);
+  }
+  return bias;
+}
+
+/** Quanto una carta è "da dichiarazione alta": briscole e figure in testa. */
+function cardAppeal(c, trump) {
+  const base = (c.strength - 5.5) / 4.5;               // A=+1 … 2=−1
+  return c.suit === trump ? 0.45 + base : 0.55 * base;
+}
+
+/**
+ * Distribuisce le carte non viste agli avversari rispettando:
+ *  - il numero di carte che ciascuno ha ancora in mano;
+ *  - i vuoti di seme già rivelati (chi non ha risposto a un seme non lo ha).
+ * Le carte in eccedenza rappresentano il mazzo non distribuito.
+ *
+ * Con `bias` (e una briscola) il sorteggio non è più uniforme: le carte forti
+ * finiscono più spesso a chi ha dichiarato tanto. È la "lettura del tavolo",
+ * e la usano solo le personalità che ce l'hanno.
+ */
+function sampleDeal(pool, needs, voids, bias, trump, forza) {
+  const pesato = !!bias && !!forza;
+  for (let attempt = 0; attempt < 24; attempt++) {
+    let rest = shuffleDeck(pool.slice());
+    const hands = [[], [], [], [], []];
+    // serve prima i giocatori più vincolati (meno carte compatibili disponibili)
+    const order = [];
+    for (let i = 0; i < NUM_PLAYERS; i++) if (needs[i] > 0) order.push(i);
+    order.sort((a, b) => {
+      const ea = rest.filter(c => !voids[a][c.suit]).length - needs[a];
+      const eb = rest.filter(c => !voids[b][c.suit]).length - needs[b];
+      return ea - eb;
+    });
+    let ok = true;
+    for (const i of order) {
+      const elig = [], other = [];
+      for (const c of rest) (voids[i][c.suit] ? other : elig).push(c);
+      if (elig.length < needs[i]) { ok = false; break; }
+      if (pesato && bias[i] !== 0) {
+        /* sorteggio pesato senza rimpiazzo: chiave = peso + rumore di Gumbel,
+           si tengono le `needs[i]` chiavi più alte. Con peso 0 torna uniforme. */
+        const k = forza * bias[i];
+        const keys = elig.map(c => ({
+          c, v: k * cardAppeal(c, trump) - Math.log(-Math.log(RNG() || 1e-9))
+        }));
+        keys.sort((a, b) => b.v - a.v);
+        elig.length = 0;
+        for (const x of keys) elig.push(x.c);
+      }
+      hands[i] = elig.slice(0, needs[i]);       // `rest` è già mescolato ⇒ scelta casuale
+      // le carte scartate per il vuoto tornano nel mazzo: va rimescolato, altrimenti
+      // finiscono in fondo e non vengono mai assegnate ai giocatori serviti dopo.
+      rest = shuffleDeck(elig.slice(needs[i]).concat(other));
+    }
+    if (ok) return hands;
+  }
+  // Fallback estremo (configurazione di vuoti incompatibile col campionamento):
+  // si ignora il vincolo dei vuoti per non bloccare mai il motore.
+  const rest = shuffleDeck(pool.slice());
+  const hands = [[], [], [], [], []];
+  let k = 0;
+  for (let i = 0; i < NUM_PLAYERS; i++) for (let j = 0; j < needs[i]; j++) hands[i].push(rest[k++]);
+  return hands;
+}
+
+/**
+ * Gioca fino in fondo una mano simulata con la politica euristica.
+ * `hands`, `tricks` vengono modificati: passare sempre copie.
+ * @returns array con le prese finali di ciascun giocatore.
+ */
+function playout(hands, bids, tricks, trump, trickState, persArr) {
+  let leader = trickState.leader;
+  let plays = trickState.plays.slice();
+  let ledSuit = trickState.ledSuit;
+  let guard = 0;
+
+  while (guard++ < 20) {
+    for (let i = plays.length; i < NUM_PLAYERS; i++) {
+      const p = (leader + i) % NUM_PLAYERS;
+      const h = hands[p];
+      if (!h.length) continue; // sicurezza: non dovrebbe accadere
+      const c = policyChooseCard(h, ledSuit, trump, plays, bids[p], tricks[p],
+                                 NUM_PLAYERS - 1 - i, persArr[p],
+                                 { bids, tricks, me: p });
+      const k = h.indexOf(c);
+      h.splice(k >= 0 ? k : 0, 1);
+      if (i === 0) ledSuit = c.suit;
+      plays.push({ player: p, card: c });
+    }
+    const w = determineTrickWinner(plays, ledSuit, trump);
+    tricks[w]++;
+    leader = w;
+    plays = []; ledSuit = null;
+    let empty = true;
+    for (let i = 0; i < NUM_PLAYERS; i++) if (hands[i].length) { empty = false; break; }
+    if (empty) break;
+  }
+  return tricks;
+}
+
+/* ======================================================================
+   4) MONTE CARLO PER LA DICHIARAZIONE
+   ====================================================================== */
+
+/**
+ * Distribuzione delle prese ottenute dal giocatore `me` se dichiarasse `myBid`.
+ * Le dichiarazioni già note degli avversari vengono usate davvero: chi ha
+ * dichiarato 0 gioca per perdere, e questo cambia il risultato delle simulazioni.
+ */
+function simulateHandMonteCarlo(me, trump, myBid, sims, knownBids, ctx) {
+  const cph = ctx.cardsPerHand;
+  const dist = new Array(cph + 1).fill(0);
+  const needs = new Array(NUM_PLAYERS).fill(0);
+  for (let i = 0; i < NUM_PLAYERS; i++) needs[i] = (i === me) ? 0 : ctx.needs[i];
+  const persArr = ctx.persArr;
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  /* Ogni carattere ha il suo tempo di riflessione: chi è impulsivo decide
+     prima e calcola meno, il calcolatore si prende quasi il doppio. */
+  const budget = cfg().budget * ((persArr[me] && persArr[me].think) || 1);
+  let done = 0;
+  /* Lettura del tavolo: chi ce l'ha non distribuisce più le carte coperte a
+     caso, ma tenendo conto di quello che gli altri hanno dichiarato. */
+  const forza = (persArr[me] && persArr[me].lettura) || 0;
+  const bias = forza ? readBias(knownBids, ctx.tricks, needs, me) : null;
+
+  for (let s = 0; s < sims; s++) {
+    const hands = sampleDeal(ctx.pool, needs, ctx.voids, bias, trump, forza);
+    hands[me] = ctx.myHand.slice();
+    const bids = new Array(NUM_PLAYERS);
+    for (let i = 0; i < NUM_PLAYERS; i++) {
+      if (i === me) bids[i] = myBid;
+      else if (knownBids[i] != null) bids[i] = knownBids[i];
+      else bids[i] = modelOpponentBid(hands[i], trump, cph); // stima plausibile
+    }
+    const tricks = ctx.tricks.slice();
+    playout(hands, bids, tricks, trump,
+            { leader: ctx.leader, plays: ctx.plays || [], ledSuit: ctx.ledSuit || null }, persArr);
+    dist[clamp(tricks[me], 0, cph)]++;
+    done++;
+    if (((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0) > budget) break;
+  }
+  dist.total = done || 1;
+  return dist;
+}
+
+/** Peso di personalità applicato al valore atteso di una dichiarazione. */
+function persBidWeight(pers, bid, cph, knownBids) {
+  let w = 1 + (pers.bidSlope || 0) * bid;
+  if (pers.readsTable) {
+    const declared = knownBids.filter(x => x != null);
+    if (declared.length) {
+      const sum = declared.reduce((a, c) => a + c, 0);
+      const expected = cph * declared.length / NUM_PLAYERS;
+      const gap = sum - expected;               // >0 = tavolo ottimista
+      w *= clamp(1 - 0.06 * gap * (bid / Math.max(1, cph)), 0.65, 1.35);
+    }
+  }
+  return clamp(w, 0.5, 1.6);
+}
+
+/* --------------------------------------------------------------------------
+   Peso di contesto: la classifica, non solo la mano.
+   Fino a qui ogni CPU massimizzava la resa della singola smazzata e ignorava
+   completamente il punteggio. Ma il CLAG è una corsa: all'ultima mano, sotto
+   di venti punti, la dichiarazione giusta non è quella che rende di più in
+   media, è quella che se entra ti fa vincere. E chi è in testa ha l'interesse
+   opposto: gli conviene la dichiarazione più sicura, non la più ricca.
+   Il peso entra in gioco solo nelle ultime cinque mani e cresce piano.
+   -------------------------------------------------------------------------- */
+function gameContextWeight(me, bid, cph) {
+  if (!G.players || !G.players[me] || typeof G.handIndex !== 'number') return 1;
+  const restanti = HAND_SIZES.length - G.handIndex;      // questa compresa
+  if (restanti > 5 || restanti < 1) return 1;
+  const pressione = 0.07 * (6 - restanti);               // 0.07 … 0.35
+  const mio = G.players[me].score;
+  let migliore = -Infinity;                              // il migliore degli ALTRI
+  for (let i = 0; i < G.players.length; i++)
+    if (i !== me && G.players[i].score > migliore) migliore = G.players[i].score;
+  /* `gap` positivo = quanto sei sotto a chi comanda; negativo = quanto sei
+     avanti sul secondo. Un distacco di pochi punti non è un distacco, è una
+     mano storta: si cambia atteggiamento solo quando il divario conta.     */
+  const gap = migliore - mio;
+  if (Math.abs(gap) < 12) return 1;
+
+  if (gap < 0) {
+    // in testa: difendere vale più che guadagnare, le dichiarazioni alte pesano meno
+    return clamp(1 - pressione * (bid / Math.max(1, cph)), 0.60, 1);
+  }
+  /* Sotto: quanto terreno recuperi se questa dichiarazione entra?
+     Una mano media vale poco più di otto punti a testa; se ti servono più di
+     quelli, una dichiarazione piccola non ti salva nemmeno se la centri.     */
+  const MEDIA = 8.5;
+  const serve = gap / restanti;
+  const guadagno = (10 + 2 * bid) - MEDIA;
+  return clamp(1 + pressione * clamp((guadagno - serve) / 5, -1, 1), 0.65, 1.40);
+}
+
+/* Reazione alla mano precedente: chi ha appena sbagliato la previsione non
+   riparte da zero. Il carattere aggressivo rilancia, il prudente si chiude.
+   Vale solo per una mano e solo di poco: serve a dare un ritmo umano alle
+   dichiarazioni, non a peggiorarle davvero. */
+function tiltWeight(me, bid, cph) {
+  const pers = G.players && G.players[me] ? G.players[me].pers : null;
+  if (!pers || !pers.tilt) return 1;
+  const st = G.players[me].handResults;
+  if (!st || !st.length) return 1;
+  const ultima = st[st.length - 1];
+  if (!ultima || ultima.exact) return 1;                 // centrata: nessuna scossa
+  const alto = (bid / Math.max(1, cph)) - 0.35;
+  return clamp(1 + pers.tilt * 0.30 * alto, 0.8, 1.25);
+}
+
+/**
+ * Dichiarazione ottimale: massimizza P(esatto) · (10 + 2·prese), con
+ * correzione di personalità. Restituisce anche la probabilità stimata.
+ */
+function estimateBidAI(me, trump, knownBids, ctx, simsOverride, fast) {
+  const cph = ctx.cardsPerHand;
+  const pers = ctx.persArr[me];
+  const sims = simsOverride || clamp(Math.round(cfg().bidBase / cph), cfg().minSims, 600);
+
+  /* Normale: di solito ragiona, ogni tanto dichiara di pancia. È il gradino
+     intermedio: sbaglia soprattutto le previsioni, non le giocate. */
+  if (G.difficulty === 'normale' && !fast && RNG() < 0.32) {
+    return { bid: quickBidHeuristic(ctx.myHand, trump, cph), ev: 0, p: 0 };
+  }
+  const quick = quickBidHeuristic(ctx.myHand, trump, cph);
+  const d0 = simulateHandMonteCarlo(me, trump, quick, sims, knownBids, ctx);
+  let mode = 0;
+  for (let i = 1; i <= cph; i++) if (d0[i] > d0[mode]) mode = i;
+
+  const cands = [];
+  const push = b => { if (b >= 0 && b <= cph && cands.indexOf(b) < 0) cands.push(b); };
+  push(quick); push(mode); push(mode - 1); push(mode + 1);
+  if (!fast) push(0);
+
+  let best = null;
+  const all = [];
+  for (const b of cands) {
+    const d = (b === quick) ? d0 : simulateHandMonteCarlo(me, trump, b, sims, knownBids, ctx);
+    const p = d[b] / d.total;
+    // valore atteso sull'intera distribuzione delle prese, col punteggio in uso
+    let raw = 0;
+    for (let t = 0; t <= cph; t++) raw += (d[t] / d.total) * scorePlayerHand(b, t, cph);
+    let ev = raw * persBidWeight(pers, b, cph, knownBids);
+    /* La valutazione interna della briscola (`fast`) resta pura: lì si giudica
+       la mano, non la partita. */
+    if (!fast) ev *= gameContextWeight(me, b, cph) * tiltWeight(me, b, cph);
+    const row = { bid: b, ev, p };
+    all.push(row);
+    if (!best || ev > best.ev) best = row;
+  }
+
+  /* --- Ultime mani: conta la classifica, non la media --------------------
+     Il peso di contesto sposta il valore atteso, ma con rese che stanno spesso
+     in rapporto due a uno non basta quasi mai a cambiare il numero. Nelle
+     ultime tre mani, quando il distacco è grosso, serve una regola secca:
+     chi insegue prende la dichiarazione più alta che abbia ancora una
+     probabilità decente, anche se rende meno in media — perché la media non
+     gli fa vincere la partita; chi comanda prende la più sicura.            */
+  if (!fast && G.players && G.players[me] && typeof G.handIndex === 'number') {
+    const restanti = HAND_SIZES.length - G.handIndex;
+    if (restanti <= 3 && restanti >= 1) {
+      let migliore = -Infinity;
+      for (let i = 0; i < G.players.length; i++)
+        if (i !== me && G.players[i].score > migliore) migliore = G.players[i].score;
+      const gap = migliore - G.players[me].score;
+      if (gap > 20) {
+        /* insegue: valuta anche le dichiarazioni alte che non erano fra i candidati */
+        for (let b = 0; b <= cph; b++) {
+          if (all.some(r => r.bid === b)) continue;
+          const d = simulateHandMonteCarlo(me, trump, b, Math.round(sims * 0.6), knownBids, ctx);
+          all.push({ bid: b, ev: 0, p: d[b] / d.total });
+        }
+        const azzardo = all.filter(r => r.p >= 0.35).sort((a, b) => b.bid - a.bid)[0];
+        if (azzardo && azzardo.bid > best.bid) { azzardo.rincorsa = true; return azzardo; }
+      } else if (gap < -20) {
+        /* comanda: la dichiarazione più probabile, non la più ricca */
+        const sicura = all.slice().sort((a, b) => b.p - a.p)[0];
+        if (sicura && sicura !== best) { sicura.difesa = true; return sicura; }
+      }
+    }
+  }
+
+  /* --- Bluff ---------------------------------------------------------------
+     Le dichiarazioni sono informazione pubblica: gli avversari le usano per
+     stimare che carte hai e per decidere se contrastarti. Ogni tanto conviene
+     quindi dichiarare un numero diverso dal migliore — di solito più basso di
+     quello che la mano vale — e poi giocare davvero per quel numero, buttando
+     via le prese in eccesso. Costa qualche punto ma rende la CPU illeggibile.
+     `fast` è la valutazione interna della briscola: lì non si bluffa mai.     */
+  if (!fast && bluffEnabled() && pers.bluff && RNG() < pers.bluff) {
+    const alt = all
+      .filter(a => a.bid !== best.bid && a.p >= 0.18 && a.ev >= best.ev * 0.72)
+      .sort((a, b) => b.ev - a.ev)[0];
+    if (alt) {
+      alt.bluffFrom = best.bid;
+      return alt;
+    }
+  }
+  return best;
+}
+
+/* ======================================================================
+   5) SCELTA DELLA BRISCOLA
+   ====================================================================== */
+
+/**
+ * Valuta i 4 semi e sceglie quello col miglior valore atteso: per ogni seme
+ * calcola la dichiarazione migliore possibile e il punteggio atteso.
+ * Non sceglie il seme "più lungo", ma quello che rende la mano più CONTROLLABILE.
+ */
+function chooseTrumpAI(me, ctx) {
+  const pers = ctx.persArr[me];
+  const cph = ctx.cardsPerHand;
+
+  const sims = clamp(Math.round(cfg().trumpBase / cph), Math.round(cfg().minSims * 0.6), 400);
+  const noBids = new Array(NUM_PLAYERS).fill(null);
+  const rows = [];
+
+  for (const s of SUITS) {
+    const r = estimateBidAI(me, s, noBids, ctx, sims, true);
+    const quality = handStrengthEstimate(ctx.myHand, s);
+    // il bonus euristico rompe i pareggi e stabilizza le mani corte
+    let ev = r.ev + 0.35 * quality;
+    // le personalità aggressive premiano le briscole che consentono di dichiarare alto
+    ev += (pers.trumpBias || 0) * r.bid;
+    rows.push({ suit: s, ev, bid: r.bid, p: r.p, quality });
+  }
+  rows.sort((a, b) => b.ev - a.ev);
+
+  /* Anche il seme scelto racconta qualcosa: quando due semi si equivalgono,
+     ogni tanto la CPU prende il secondo, così la briscola non rivela dove ha
+     le carte forti. */
+  if (bluffEnabled() && pers.bluff && rows.length > 1 && RNG() < pers.bluff * 0.6) {
+    const margin = Math.abs(rows[0].ev) * 0.15;
+    const alt = rows.slice(1).filter(r => rows[0].ev - r.ev <= margin)[0];
+    if (alt) {
+      alt.bluffFrom = rows[0].suit;
+      return alt;
+    }
+  }
+  return rows[0];
+}
+
+/* ======================================================================
+   6) SCELTA DELLA CARTA (Monte Carlo vincolato)
+   ====================================================================== */
+
+/** Carte mai viste: mazzo completo meno la propria mano meno le carte giocate. */
+function unseenPool(myHand, playedCards) {
+  const seen = Object.create(null);
+  for (const c of myHand) seen[c.id] = 1;
+  for (const c of playedCards) seen[c.id] = 1;
+  return createDeck().filter(c => !seen[c.id]);
+}
+
+/**
+ * Sceglie la carta che massimizza la probabilità di chiudere la mano
+ * ESATTAMENTE sulla dichiarazione. Simula più mondi possibili coerenti con
+ * le informazioni pubbliche (carte giocate, vuoti di seme, dimensione mani).
+ */
+/* ======================================================================
+   MEMORIA DEL TAVOLO: credibilità e rancore
+   ----------------------------------------------------------------------
+   Due cose che al tavolo vero esistono e che un motore senza memoria non
+   ha: sapere di chi ci si può fidare quando dichiara, e ricordarsi chi ti
+   ha rovinato la mano. Valgono per la partita in corso e si azzerano alla
+   prima mano di quella dopo.
+   ====================================================================== */
+const CONTATORI = { sacrificio: 0, guasto: 0, carte: 0 };
+const MEMORIA = {
+  mani:   [0, 0, 0, 0, 0],   // mani giocate da ciascuno (in questa partita)
+  esatte: [0, 0, 0, 0, 0],   // quante ne ha centrate
+  rancore: [0,1,2,3,4].map(() => [0, 0, 0, 0, 0]) // rancore[vittima][colpevole]
+};
+
+/** Azzera la memoria: nuova partita. */
+function resetMemoria() {
+  MEMORIA.mani = [0,0,0,0,0]; MEMORIA.esatte = [0,0,0,0,0];
+  MEMORIA.rancore = [0,1,2,3,4].map(() => [0,0,0,0,0]);
+}
+
+/**
+ * Fine mano: si aggiorna quanto ciascuno è risultato attendibile e, per chi
+ * ha sbagliato, il conto in sospeso con chi stava giocando per disturbare.
+ */
+function aggiornaMemoria(bids, tricks) {
+  if (G.handIndex === 0) resetMemoria();
+  for (let i = 0; i < NUM_PLAYERS; i++) {
+    if (bids[i] == null) continue;
+    MEMORIA.mani[i]++;
+    if (bids[i] === tricks[i]) MEMORIA.esatte[i]++;
+  }
+  // il rancore invecchia: quello vecchio pesa la metà
+  for (let v = 0; v < NUM_PLAYERS; v++)
+    for (let c = 0; c < NUM_PLAYERS; c++) MEMORIA.rancore[v][c] *= 0.5;
+  for (let v = 0; v < NUM_PLAYERS; v++) {
+    if (bids[v] == null || bids[v] === tricks[v]) continue;   // ha centrato: niente rancore
+    for (let c = 0; c < NUM_PLAYERS; c++)
+      if (c !== v && GUASTO.scelto[c] === true) MEMORIA.rancore[v][c] += 1;
+  }
+}
+
+/**
+ * Quanto credere alla dichiarazione di un giocatore: chi centra spesso è
+ * informativo, chi manca in continuazione (o bluffa) lo è molto meno.
+ * Parte da una fiducia media e si sposta con le mani giocate.
+ */
+function creditoDi(i) {
+  const prior = 3, priorRate = 0.72;
+  const n = MEMORIA.mani[i];
+  const rate = (MEMORIA.esatte[i] + prior * priorRate) / (n + prior);
+  return clamp(0.45 + (rate - 0.5) * 1.7, 0.40, 1.30);
+}
+
+/** Chi è in testa (indice), fra quelli che hanno un punteggio. */
+function capoclassifica() {
+  const pl = G.players;
+  if (!pl || !pl.length) return -1;
+  let bi = 0;
+  for (let i = 1; i < pl.length; i++) if ((pl[i].score || 0) > (pl[bi].score || 0)) bi = i;
+  return (pl[bi].score || 0) > 0 ? bi : -1;
+}
+
+/**
+ * Partita matematicamente persa: anche vincendo il massimo in tutte le mani
+ * che restano non si arriva al punteggio che il capoclassifica ha GIÀ.
+ */
+function partitaPersa(me) {
+  const pl = G.players;
+  if (!pl || !pl.length) return false;
+  const capo = capoclassifica();
+  if (capo < 0 || capo === me) return false;
+  let massimo = 0;
+  for (let h = G.handIndex; h < HAND_SIZES.length; h++) massimo += 10 + 2 * HAND_SIZES[h];
+  return (pl[me].score || 0) + massimo < (pl[capo].score || 0);
+}
+
+/* Stato della scelta "rovino la mano agli altri": una decisione per mano e
+   per giocatore, azzerata quando cambia la mano. */
+const GUASTO = { mano: -1, scelto: [null, null, null, null, null] };
+
+function chooseCardAI(me, ctx) {
+  const hand = ctx.myHand;
+  const legal = getLegalCards(hand, ctx.ledSuit);
+  const pers = ctx.persArr[me];
+  const heur = policyChooseCard(hand, ctx.ledSuit, ctx.trump, ctx.plays,
+                                ctx.bids[me], ctx.tricks[me],
+                                NUM_PLAYERS - 1 - ctx.plays.length, pers,
+                                { bids: ctx.bids, tricks: ctx.tricks, me });
+  if (legal.length === 1) return { card: legal[0], reason: 'unica carta legale', scores: [] };
+
+  const cph = ctx.cardsPerHand;
+  const simsPerCard = clamp(
+    Math.round(cfg().cardBase / (cph * Math.sqrt(legal.length))),
+    cfg().minSims, 400
+  );
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const budget = cfg().budget * ((pers && pers.think) || 1);
+
+  /* --- La mano è bruciata? ------------------------------------------------
+     Se la previsione non è più raggiungibile — ne ha già fatte più di quante
+     ne aveva dichiarate, o non ne può più fare abbastanza — continuare a
+     giocare per sé non vale più niente: il segno è zero comunque. A quel
+     punto l'unica cosa che porta punti è toglierli agli altri, ed è anche
+     quello che farebbe una persona al tavolo. L'obiettivo diventa quindi
+     "quanti avversari faccio sbagliare".                                    */
+  const mioBid = ctx.bids[me];
+  const bruciata = mioBid != null &&
+    (ctx.tricks[me] > mioBid || mioBid > ctx.tricks[me] + hand.length);
+  /* La decisione di rovinare la mano agli altri si prende UNA VOLTA per mano,
+     non a ogni carta: prima veniva ritirata a ogni giocata e la CPU passava
+     dal disturbo alla propria previsione e viceversa dentro la stessa mano,
+     che è il contrario di un comportamento riconoscibile. */
+  let guasta;
+  if (G.disturbo === false) {                 // vecchio comportamento, per il confronto
+    guasta = bruciata && (pers.guasto || 0) > 0 && RNG() < pers.guasto;
+  } else {
+    if (GUASTO.mano !== G.handIndex) { GUASTO.mano = G.handIndex; GUASTO.scelto = [null,null,null,null,null]; }
+    if (bruciata && GUASTO.scelto[me] == null) GUASTO.scelto[me] = RNG() < (pers.guasto || 0);
+    guasta = bruciata && GUASTO.scelto[me] === true;
+  }
+  /* Sacrificio: solo nelle ultime tre mani e solo se la partita è
+     matematicamente persa. Finché c'è una possibilità di vincere si gioca
+     sempre per la propria previsione — bruciarsi apposta sarebbe un regalo
+     agli altri. */
+  const finale = G.handIndex >= HAND_SIZES.length - 3;
+  const sacrificio = !bruciata && finale && G.disturbo !== false && partitaPersa(me);
+  const disturbo = guasta || sacrificio;
+  CONTATORI.carte++; if (sacrificio) CONTATORI.sacrificio++; else if (guasta) CONTATORI.guasto++;
+
+  /* Pesi delle vittime: a parità di punti in gioco si colpisce più volentieri
+     chi è in testa, e chi in questa partita ti ha già rovinato una mano. */
+  const capo = capoclassifica();
+  const pesoVittima = i => {
+    let w = 1;
+    if (i === capo) w *= 1.6;
+    w *= 1 + 0.35 * Math.min(2, MEMORIA.rancore[me][i]);
+    return w;
+  };
+
+  const scores = [];
+  const forza = (pers && pers.lettura) || 0;
+  const bias = forza ? readBias(ctx.bids, ctx.tricks, ctx.needs, me) : null;
+
+  for (const c of legal) {
+    let ok = 0, n = 0;
+    for (let s = 0; s < simsPerCard; s++) {
+      const hands = sampleDeal(ctx.pool, ctx.needs, ctx.voids, bias, ctx.trump, forza);
+      hands[me] = hand.filter(x => x !== c);
+      const plays = ctx.plays.concat([{ player: me, card: c }]);
+      const ledSuit = ctx.ledSuit || c.suit;
+      const tricks = ctx.tricks.slice();
+      playout(hands, ctx.bids.slice(), tricks, ctx.trump,
+              { leader: ctx.leader, plays, ledSuit }, ctx.persArr);
+      if (disturbo) {
+        /* quota di avversari mandati fuori previsione, pesata dai punti che
+           ci rimettono e da quanto vale colpire proprio quello: far saltare
+           una dichiarazione da 3 vale più che far saltare uno zero, e far
+           saltare chi è in fuga vale più che far saltare l'ultimo. */
+        let danno = 0, massimo = 0;
+        for (let i = 0; i < NUM_PLAYERS; i++) {
+          if (i === me || ctx.bids[i] == null) continue;
+          const valore = (10 + 2 * ctx.bids[i]) * pesoVittima(i);
+          massimo += valore;
+          if (tricks[i] !== ctx.bids[i]) danno += valore;
+        }
+        ok += massimo ? danno / massimo : 0;
+      } else if (tricks[me] === ctx.bids[me]) ok++;
+      n++;
+      if (((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0) > budget) break;
+    }
+    scores.push({ card: c, p: n ? ok / n : 0, n });
+  }
+
+  scores.sort((a, b) => b.p - a.p);
+  const top = scores[0].p;
+  // fra scelte statisticamente equivalenti si preferisce quella euristica
+  // (conserva le briscole giuste e mantiene coerente lo stile della CPU)
+  const near = scores.filter(s => s.p >= top - 0.02);
+  let pick = (disturbo ? null : near.find(s => s.card === heur)) || scores[0];
+  let umana = sacrificio ? ' · partita persa: gioca contro chi è in testa'
+            : guasta     ? ' · gioca per far sbagliare gli altri' : '';
+
+  /* Varietà in apertura. Con la regola nuova l'uscita è quasi sempre la
+     stessa carta — spesso l'asso laterale — e una CPU che apre sempre allo
+     stesso modo si legge a occhio. Fra le carte che rendono praticamente
+     uguale, ogni tanto ne prende un'altra: non perde niente e smette di
+     essere prevedibile. */
+  if (!disturbo && ctx.plays.length === 0 && near.length > 1 && RNG() < (pers.varia || 0)) {
+    const alt = near.filter(s => s !== pick);
+    if (alt.length) { pick = alt[Math.floor(RNG() * alt.length)]; umana = ' · apre diverso'; }
+  }
+
+  /* Carattere: chi ama le briscole, a parità sostanziale di resa, le tira
+     fuori invece di tenersele. Non è un errore — è un modo di giocare. */
+  if ((pers.trumpLead || 0) > 0 && near.length > 1 && RNG() < pers.trumpLead) {
+    const conBriscola = near.filter(s => s.card.suit === ctx.trump);
+    if (conBriscola.length) {
+      pick = conBriscola.reduce((a, b) => b.card.strength > a.card.strength ? b : a);
+      umana = ' · tira la briscola';
+    }
+  }
+
+  /* Distrazione: ha già fatto le prese che aveva dichiarato e per un attimo
+     se ne dimentica — gioca come se gliene servisse ancora una, e si porta a
+     casa una presa che non voleva. È esattamente l'errore che si vede nei
+     registri delle partite vere, ed è il gesto che separa una persona da un
+     motore; il calcolatore puro (`guarda`) non lo fa mai. */
+  const alNumero = ctx.bids[me] != null && ctx.tricks[me] >= ctx.bids[me];
+  if (alNumero && (pers.slip || 0) > 0 && RNG() < pers.slip) {
+    const svista = policyChooseCard(hand, ctx.ledSuit, ctx.trump, ctx.plays,
+                                    ctx.tricks[me] + 1, ctx.tricks[me],
+                                    NUM_PLAYERS - 1 - ctx.plays.length, pers);
+    const riga = scores.find(s => s.card === svista);
+    if (riga && riga !== pick) { pick = riga; umana = ' · distratto'; }
+  }
+
+  // In modalità Normale l'IA lascia un margine di imprecisione volutamente umano
+  const noise = cfg().noise;
+  if (noise > 0 && scores.length > 1 && RNG() < noise) pick = scores[1];
+
+  const reason = (guasta ? 'danno agli avversari=' : 'P(dich. esatta)=') +
+                 (pick.p * 100).toFixed(0) + '% su ' + pick.n +
+                 ' simulazioni · obiettivo ' + ctx.bids[me] + ', fatte ' + ctx.tricks[me] + umana;
+  return { card: pick.card, reason, scores };
+}
+/* ==========================================================================
+   CLAG — UIManager + flusso di partita
+   --------------------------------------------------------------------------
+   Blocco 3/4 : rendering, input dell'umano, ciclo delle 14 mani.
+   ========================================================================== */
+
+/* ------------------------------ Utility DOM ------------------------------ */
+const $ = sel => document.querySelector(sel);
+function el(tag, cls, html) {
+  const d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (html != null) d.innerHTML = html;
+  return d;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** Faccia della carta (valore, seme grande, valore capovolto). */
+function cardFaceHTML(card) {
+  const info = SUIT_INFO[card.suit];
+  return '<span class="r">' + card.rank + '</span>' +
+         '<span class="big">' + info.sym + '</span>' +
+         '<span class="r2">' + card.rank + '</span>';
+}
+/** Carta come stringa HTML (per i pannelli costruiti con innerHTML). */
+function cardHTML(card, cls) {
+  return '<span class="card ' + SUIT_INFO[card.suit].color + (cls ? ' ' + cls : '') + '">' +
+         cardFaceHTML(card) + '</span>';
+}
+/** Valore + seme colorato, in linea nel testo (log delle prese). */
+function cardInline(card, strong) {
+  return '<span class="ci' + (strong ? ' strong' : '') + '" style="color:' + SUIT_INFO[card.suit].dark + '">' +
+         card.rank + SUIT_INFO[card.suit].sym + '</span>';
+}
+
+/** Elemento grafico di una carta. */
+function cardEl(card, opts) {
+  opts = opts || {};
+  const info = SUIT_INFO[card.suit];
+  const d = el('div', 'card ' + info.color + (opts.size ? ' ' + opts.size : '') + (opts.extra ? ' ' + opts.extra : ''));
+  d.innerHTML = cardFaceHTML(card);
+  if (opts.title) d.title = opts.title;
+  if (opts.onClick) { d.classList.add('play'); d.onclick = opts.onClick; }
+  // Sui telefoni il tooltip non esiste: toccare una carta vietata spiega il perché.
+  else if (opts.onDeny) d.onclick = opts.onDeny;
+  return d;
+}
+
+/** Ordina la mano: prima la briscola, poi gli altri semi; forza decrescente. */
+function sortHand(hand, trump) {
+  const order = {};
+  SUITS.forEach((s, i) => order[s] = (s === trump ? -1 : i));
+  return hand.slice().sort((a, b) => (order[a.suit] - order[b.suit]) || (b.strength - a.strength));
+}
+
+/* --------------------- Contesto per il motore di IA ---------------------- */
+/** Fotografia dello stato pubblico + mano privata, pronta per l'AIEngine. */
+function aiCtx(me) {
+  const P = G.players[me];
+  const played = new Set(G.trick.plays.map(x => x.player));
+  const needs = new Array(NUM_PLAYERS).fill(0);
+  for (let i = 0; i < NUM_PLAYERS; i++) {
+    needs[i] = (i === me) ? 0 : Math.max(0, G.cardsPerHand - G.trickNo - (played.has(i) ? 1 : 0));
+  }
+  return {
+    cardsPerHand: G.cardsPerHand,
+    myHand: P.hand,
+    pool: unseenPool(P.hand, G.playedCards),
+    needs, voids: G.voids,
+    tricks: G.players.map(p => p.tricks),
+    bids: G.players.map(p => p.bid),
+    persArr: G.players.map(p => p.pers),
+    trump: G.trump,
+    ledSuit: G.trick.ledSuit,
+    plays: G.trick.plays,
+    leader: G.trick.leader
+  };
+}
+
+/* ============================== RENDERING =============================== */
+
+function renderHeader() {
+  $('#hHand').textContent = G.phase === 'idle' ? '–' : Math.min(G.handIndex + 1, HAND_SIZES.length);
+  $('#hCards').textContent = G.cardsPerHand || '–';
+  $('#hTrick').textContent = G.cardsPerHand
+    ? Math.min(G.trickNo + 1, G.cardsPerHand) + '/' + G.cardsPerHand : '–';
+}
+
+/**
+ * Briscola in grande, sopra il tappeto: è l'informazione che serve a ogni
+ * singola giocata, quindi ha un posto fisso e ben visibile.
+ */
+function renderTrumpBadge() {
+  const box = $('#banner');
+  if (!G.players.length) { box.innerHTML = ''; return; }
+  const chooser = G.players[G.chooser].name;
+
+  if (!G.trump) {
+    box.innerHTML =
+      '<div class="trumpbox pending">' +
+        '<div class="tcard pending">?</div>' +
+        '<div class="tmeta">' +
+          '<div class="tlabel">Briscola</div>' +
+          '<div class="tname">Da scegliere</div>' +
+          '<div class="tinfo">tocca a <b>' + chooser + '</b>, alla sinistra del mazziere</div>' +
+        '</div>' +
+      '</div>';
+    return;
+  }
+
+  const info = SUIT_INFO[G.trump];
+  const declared = G.players.filter(p => p.bid != null);
+  let line = 'scelta da <b>' + chooser + '</b>';
+  if (declared.length === NUM_PLAYERS) {
+    const sum = declared.reduce((a, p) => a + p.bid, 0);
+    line += ' · dichiarate <b>' + sum + '</b> ' + (sum === 1 ? 'presa' : 'prese') +
+            ' su ' + G.cardsPerHand;
+  }
+  box.innerHTML =
+    '<div class="trumpbox">' +
+      '<div class="tcard ' + info.color + '">' + info.sym + '</div>' +
+      '<div class="tmeta">' +
+        '<div class="tlabel">Briscola</div>' +
+        '<div class="tname">' + info.name + '</div>' +
+        '<div class="tinfo">' + line + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderSeat(i) {
+  const p = G.players[i], box = $('#seat-' + i);
+  if (!box) return;
+  // `hideSelf` va riscritta a ogni giro: sul telefono nasconde il proprio
+  // riquadro, che sarebbe solo una ripetizione della riga di stato.
+  box.className = 'seat' + (i === 0 ? ' hideSelf' : '') +
+                  (G.currentPlayer === i && G.phase !== 'handEnd' ? ' turn' : '');
+  const badges =
+    (i === G.dealer ? '<span class="badge d" title="Mazziere">Mazziere</span>' : '') +
+    (i === G.chooser ? '<span class="badge b" title="Ha scelto la briscola">Briscola</span>' : '');
+  /* Corona a chi comanda. Alla prima mano sono tutti a zero e non vuol dire
+     niente, quindi compare dalla seconda; se più giocatori sono appaiati in
+     testa la portano tutti. */
+  const corona = (G.handIndex > 0 && G.players.some(x => x.score > 0) &&
+                  p.score === Math.max.apply(null, G.players.map(x => x.score)))
+    ? '<span class="crown" title="In testa">👑</span>' : '';
+  let cls = 'bidunder';
+  if (p.bid != null) cls = p.tricks === p.bid ? 'bidok' : (p.tricks > p.bid ? 'bidover' : 'bidunder');
+
+  // Carta calata in questa presa: compare nel riquadro del giocatore, così è
+  // sempre evidente chi ha giocato che cosa (oltre che al centro del tavolo).
+  const mine = G.trick.plays.filter(pl => pl.player === i)[0];
+  const leading = mine && G.trick.plays.length &&
+                  G.trick.plays[bestPlayIndex(G.trick.plays, G.trick.ledSuit, G.trump)].player === i;
+  let extra = '';
+  if (mine && (G.phase === 'playing' || G.phase === 'trickEnd')) {
+    extra = '<div class="lastcard' + (leading ? ' lead' : '') + '">' +
+              cardHTML(mine.card, 'xs' + (mine.card.suit === G.trump ? ' trumpc' : '')) +
+              '<span class="lc">' + (leading ? (G.phase === 'trickEnd' ? 'prende' : 'in vantaggio') : 'ha giocato') + '</span>' +
+            '</div>';
+  } else if (!p.isHuman) {
+    extra = G.debug
+      ? '<div class="dbgcards">' + sortHand(p.hand, G.trump)
+          .map(c => '<span style="color:' + SUIT_INFO[c.suit].dark + '">' + c.label + '</span>').join(' ') + '</div>'
+      : '<div class="backs">' + Array.from({ length: p.hand.length }, () => '<span class="mini"></span>').join('') + '</div>';
+  }
+
+  box.innerHTML =
+    '<div class="brow">' + (badges || '<span class="badge vuoto">·</span>') + '</div>' +
+    '<div class="nm">' + corona + p.name + '</div>' +
+    (p.isHuman ? '' : '<div class="pers">' + p.pers.label + '</div>') +
+    (p.bid == null
+      ? '<div class="stat"><span class="full">Deve ancora dichiarare</span><span class="short">–</span></div>'
+      : '<div class="stat"><span class="full">Prese </span><b class="' + cls + '">' + p.tricks +
+        '</b><span class="full"> di </span><span class="short">/</span><b>' + p.bid + '</b></div>') +
+    '<div class="pt">' + p.score + '<span class="full"> punti</span><span class="short">p</span></div>' + extra;
+}
+
+/** "Presa tua" se ha vinto il giocatore, "Presa di Ada" altrimenti. */
+function presaDi(p) { return p.isHuman ? '<b>Presa tua</b>' : 'Presa di <b>' + p.name + '</b>'; }
+
+function renderTrick() {
+  const area = $('#trickArea');
+  area.innerHTML = '';
+  const plays = G.trick.plays;
+  // A tavolo vuoto (scelta della briscola, dichiarazioni) il tappeto si
+  // stringe: su un telefono quello spazio serve ai pulsanti e alle carte.
+  $('#felt').classList.toggle('empty', plays.length === 0);
+  const bi = plays.length ? bestPlayIndex(plays, G.trick.ledSuit, G.trump) : -1;
+  plays.forEach((pl, idx) => {
+    const p = G.players[pl.player];
+    const w = el('div', 'played' + (idx === bi ? ' winner' : ''));
+    w.appendChild(el('div', 'who' + (p.isHuman ? ' me' : ''), p.name));
+    w.appendChild(cardEl(pl.card, {
+      size: 'sm',
+      extra: (idx === bi ? 'win' : '') + (pl.card.suit === G.trump ? ' trumpc' : '')
+    }));
+    // A presa chiusa la targhetta dice chi l'ha vinta, non chi era avanti.
+    const tag = idx === bi ? (G.phase === 'trickEnd' ? 'prende' : 'in vantaggio')
+                           : (idx === 0 ? 'apre' : '');
+    w.appendChild(el('div', 'tag2', tag));
+    area.appendChild(w);
+  });
+
+  let info = '';
+  if (G.phase === 'playing' || G.phase === 'trickEnd') {
+    if (!plays.length) info = 'Apre <b>' + G.players[G.trick.leader].name + '</b>';
+    else {
+      const s = SUIT_INFO[G.trick.ledSuit];
+      info = G.phase === 'trickEnd' && bi >= 0
+        ? presaDi(G.players[plays[bi].player])
+        : 'Seme di partenza <b>' + s.sym + ' ' + s.name + '</b>';
+    }
+  } else if (G.phase === 'bidding') {
+    info = 'Dichiarazioni in corso';
+  } else if (G.phase === 'trump') {
+    info = 'Scelta della briscola';
+  }
+  $('#trickInfo').innerHTML = info;
+}
+
+/**
+ * Le carte della presa volano verso il riquadro di chi ha vinto, come quando
+ * si raccoglie la presa al tavolo. Rispetta prefers-reduced-motion e si adatta
+ * al ritmo scelto; se il posto è nascosto (telefono) le carte scendono in basso.
+ */
+function animateTrickTo(winner) {
+  const area = $('#trickArea');
+  const cards = Array.prototype.slice.call(area.children);
+  if (!cards.length) return Promise.resolve();
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = Math.round(Math.max(180, Math.min(520, G.speed * 0.6)));
+  if (reduce) return Promise.resolve();
+
+  const seat = $('#seat-' + winner);
+  const sr = seat ? seat.getBoundingClientRect() : null;
+  const toSeat = sr && sr.width > 0 && sr.height > 0;
+
+  cards.forEach((el, i) => {
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const tx = toSeat ? sr.left + sr.width / 2 : cx;
+    const ty = toSeat ? sr.top + sr.height / 2 : cy + 140;
+    el.style.transition = 'transform ' + dur + 'ms cubic-bezier(.4,0,.2,1), opacity ' +
+                          dur + 'ms ease-in ' + Math.round(dur * 0.35) + 'ms';
+    el.style.transitionDelay = (i * 22) + 'ms, ' + (i * 22 + Math.round(dur * 0.35)) + 'ms';
+    el.style.transform = 'translate(' + (tx - cx) + 'px,' + (ty - cy) + 'px) scale(.42) rotate(' +
+                         ((i - 2) * 5) + 'deg)';
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+  });
+  if (seat) {
+    seat.classList.add('won');
+    setTimeout(() => seat.classList.remove('won'), dur + 500);
+  }
+  return sleep(dur + cards.length * 22 + 30);
+}
+
+/** Avviso temporaneo nella riga dei suggerimenti (utile al tocco). */
+let hintTimer = null;
+function flashHint(text) {
+  const h = $('#hint');
+  h.textContent = text;
+  h.classList.add('warn');
+  if (hintTimer) clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { h.classList.remove('warn'); renderMessages(); }, 2200);
+}
+
+function renderPlayerHand() {
+  const box = $('#humanHand');
+  box.innerHTML = '';
+  const me = G.players[0];
+  if (!me) return;
+  const legal = (G.phase === 'playing' && pendingCard)
+    ? getLegalCards(me.hand, G.trick.ledSuit) : me.hand;
+  const legalSet = new Set(legal);
+  for (const c of sortHand(me.hand, G.trump)) {
+    const playable = pendingCard && legalSet.has(c);
+    const opts = { extra: (c.suit === G.trump ? 'trumpc' : '') };
+    if (playable) opts.onClick = () => humanPlays(c);
+    else if (pendingCard) {
+      opts.extra += ' no';
+      const why = 'Hai carte di ' + SUIT_INFO[G.trick.ledSuit].name + ': devi rispondere a quel seme.';
+      opts.title = why;
+      opts.onDeny = () => flashHint(why);
+    }
+    if (c.suit === G.trump) opts.title = (opts.title ? opts.title + ' ' : '') + 'Carta di briscola.';
+    box.appendChild(cardEl(c, opts));
+  }
+}
+
+/**
+ * Segnapunti in stile foglio di carta: a sinistra le previsioni mano per
+ * mano, al centro le carte distribuite, a destra il punteggio progressivo.
+ */
+function renderScoreSheet() {
+  if (!G.players.length) return;
+  const shortName = p => p.name.length > 5 ? p.name.slice(0, 4) + '.' : p.name;
+
+  let head = '';
+  const nameCells = () => G.players.map(p =>
+    '<th class="' + (p.isHuman ? 'me' : '') + '" title="' + p.name + '">' + shortName(p) + '</th>').join('');
+  head = nameCells() + '<th class="mid" title="carte distribuite">C</th>' + nameCells();
+  $('#sheetNames').innerHTML = head;
+
+  const run = new Array(NUM_PLAYERS).fill(0);
+  let rows = '';
+  for (let h = 0; h < HAND_SIZES.length; h++) {
+    const cur = h === G.handIndex && G.phase !== 'gameEnd' && G.phase !== 'idle';
+    let left = '', right = '';
+    for (let i = 0; i < NUM_PLAYERS; i++) {
+      const p = G.players[i];
+      const res = p.handResults[h];
+      const me = p.isHuman ? ' mecol' : '';
+      if (res) {
+        run[i] += res.pts;
+        left += '<td class="' + (res.exact ? 'hit' : 'miss') + me + '" title="' +
+                res.tricks + ' prese realizzate">' + res.bid + '</td>';
+        right += '<td class="pts' + me + '" title="' + (res.pts ? '+' + res.pts : 'nessun punto') +
+                 ' in questa mano">' + run[i] + '</td>';
+      } else if (cur && p.bid != null) {
+        const busted = p.tricks > p.bid;
+        left += '<td class="' + (busted ? 'miss' : 'bidnow') + me + '" title="' +
+                p.tricks + ' prese finora">' + p.bid + '</td>';
+        right += '<td class="' + me.trim() + '">·</td>';
+      } else {
+        left += '<td class="' + me.trim() + '"></td>';
+        right += '<td class="' + me.trim() + '"></td>';
+      }
+    }
+    rows += '<tr class="' + (cur ? 'cur' : '') + '">' + left +
+            '<td class="mid">' + HAND_SIZES[h] + '</td>' + right + '</tr>';
+  }
+  $('#sheetBody').innerHTML = rows;
+
+  const best = Math.max.apply(null, G.players.map(p => p.score));
+  let tot = '';
+  G.players.forEach(p => {
+    const n = p.handResults.filter(r => r.exact).length;
+    tot += '<td class="small' + (p.isHuman ? ' mecol' : '') + '" title="previsioni centrate finora">' + n + '</td>';
+  });
+  tot += '<td class="mid">Σ</td>';
+  G.players.forEach(p => {
+    tot += '<td class="' + (p.score === best && best > 0 ? 'lead' : '') + (p.isHuman ? ' mecol' : '') + '">' +
+           p.score + '</td>';
+  });
+  $('#sheetTot').innerHTML = tot;
+}
+
+function renderTrickLog() {
+  const tl = $('#trickLog');
+  if (!G.trickLog.length) {
+    tl.innerHTML = '<div class="logline">Nessuna presa giocata in questa mano.</div>';
+    return;
+  }
+  tl.innerHTML = G.trickLog.map(t =>
+    '<div class="logline"><span class="tn">' + t.n + '</span> ' + t.detail +
+    ' <span class="arrow">→</span> <b>' + t.winner + '</b></div>').join('');
+}
+
+function renderDebug() {
+  $('#dbgWrap').classList.toggle('hidden', !G.debug);
+  if (G.debug) $('#dbg').textContent = G.debugLines.slice(-60).join('\n');
+}
+
+/** Una riga che dice cosa fare, una che dice come stai andando. Niente di più. */
+/** Riga compatta con la propria dichiarazione: sul telefono sostituisce il riquadro. */
+function renderMyStat() {
+  const me = G.players[0], box = $('#myStat');
+  if (!me || me.bid == null) { box.innerHTML = ''; return; }
+  const cls = me.tricks === me.bid ? 'ok2' : (me.tricks > me.bid ? 'bad2' : '');
+  /* La cosa che serve davvero sapere mentre giochi non è quante ne hai fatte,
+     è quante te ne mancano — ed è l'informazione che si perde di vista. */
+  const manca = me.bid - me.tricks;
+  const coda = manca > 0
+    ? '<span class="serve">ti manca<b> ' + manca + '</b> ' + (manca === 1 ? 'presa' : 'prese') + '</span>'
+    : (manca === 0 ? '<span class="serve ok2">ci sei</span>'
+                   : '<span class="serve bad2">' + (-manca) + ' di troppo</span>');
+  box.innerHTML = '<span>prese <b class="' + cls + '">' + me.tricks +
+                  '</b> di <b>' + me.bid + '</b></span>' + coda;
+}
+
+function renderMessages() {
+  const me = G.players[0];
+  let msg = '', hint = '';
+  renderMyStat();
+  if (!me) { $('#msg').textContent = ''; $('#hint').textContent = ''; return; }
+
+  const target = () => {
+    const need = me.bid - me.tricks;
+    const left = G.cardsPerHand - G.trickNo;
+    if (me.bid == null) return '';
+    /* quante ne mancano lo dice già la targhetta qui sotto: qui basta
+       ricordare quante prese restano sul tavolo */
+    if (need > 0) return 'Ne ' + (left === 1 ? 'resta 1 da giocare.' : 'restano ' + left + ' da giocare.');
+    if (need === 0) return 'Sei in linea: evita prese extra.';
+    return 'Hai superato la dichiarazione di ' + (-need) + ': la mano vale 0.';
+  };
+
+  if (G.phase === 'trump') {
+    msg = G.chooser === 0 ? 'Scegli il seme di briscola' : G.players[G.chooser].name + ' sceglie la briscola…';
+    hint = G.chooser === 0 ? 'Deciderai anche l\'apertura della prima presa.' : '';
+  } else if (G.phase === 'bidding') {
+    msg = G.currentPlayer === 0 ? 'Quante prese pensi di fare?' : G.players[G.currentPlayer].name + ' dichiara…';
+    hint = 'Centrare la previsione vale 10 punti + 2 per presa; sbagliare vale 0.';
+  } else if (G.phase === 'playing') {
+    if (G.currentPlayer === 0 && pendingCard) {
+      msg = 'Tocca a te: gioca una carta';
+      if (G.trick.ledSuit && me.hand.some(c => c.suit === G.trick.ledSuit)) {
+        hint = 'Devi rispondere a ' + SUIT_INFO[G.trick.ledSuit].name + '. ' + target();
+      } else if (G.trick.ledSuit) {
+        hint = 'Non hai ' + SUIT_INFO[G.trick.ledSuit].name + ': puoi tagliare o scartare. ' + target();
+      } else {
+        hint = 'Apri tu la presa. ' + target();
+      }
+    } else {
+      msg = 'Gioca ' + G.players[G.currentPlayer].name + '…';
+      hint = target();
+    }
+  } else if (G.phase === 'trickEnd') {
+    const last = G.trickLog[G.trickLog.length - 1];
+    msg = last.winner === G.players[0].name ? 'Presa tua' : 'Presa di ' + last.winner;
+    hint = target();
+  } else if (G.phase === 'handEnd') {
+    const ok = me.bid === me.tricks;
+    msg = ok ? 'Previsione centrata: +' + scorePlayerHand(me.bid, me.tricks) + ' punti'
+             : 'Previsione sbagliata: 0 punti';
+    hint = 'Avevi dichiarato ' + me.bid + ', hai fatto ' + me.tricks + '.';
+  }
+  $('#msg').textContent = msg;
+  $('#hint').textContent = hint;
+}
+
+/** Ridisegna tutto tranne il pannello azioni (gestito dal flusso di gioco). */
+function renderGame() {
+  if (!G.players.length) return;
+  renderHeader();
+  renderTrumpBadge();
+  for (let i = 0; i < NUM_PLAYERS; i++) renderSeat(i);
+  renderTrick();
+  renderPlayerHand();
+  renderScoreSheet();
+  renderTrickLog();
+  renderMessages();
+  renderDebug();
+}
+const render = renderGame;
+
+/* ============================ INPUT DELL'UMANO ========================== */
+
+let pendingCard = null;      // resolver in attesa della carta dell'umano
+let pendingAction = null;    // resolver in attesa di un click su un bottone
+let GEN = 0;                 // generazione di partita (per annullare i loop)
+
+function AbortGame() { this.abort = true; }
+function checkGen(g) { if (g !== GEN) throw new AbortGame(); }
+
+function abortPending() {
+  if (pendingCard) { const r = pendingCard; pendingCard = null; r(null); }
+  if (pendingAction) { const r = pendingAction; pendingAction = null; r(null); }
+}
+
+function humanPlays(card) {
+  if (!pendingCard) return;
+  const r = pendingCard; pendingCard = null;
+  $('#actions').innerHTML = '';
+  r(card);
+}
+
+function actionsBox() { const a = $('#actions'); a.innerHTML = ''; return a; }
+function mkBtn(label, cls, fn) {
+  const b = el('button', 'btn' + (cls ? ' ' + cls : ''), label);
+  b.onclick = fn;
+  return b;
+}
+
+/** Attende che l'umano clicchi una carta legale. */
+function waitHumanCard() {
+  return new Promise(res => {
+    pendingCard = res;
+    const a = actionsBox();
+    a.appendChild(el('span', 'tag', 'Clicca una carta per giocarla'));
+    render();
+  });
+}
+
+/** Bottone di avanzamento; con "auto-avanza" scatta da solo dopo un attimo. */
+function waitContinue(label, delay) {
+  return new Promise(res => {
+    const a = actionsBox();
+    let timer = null;
+    const done = () => {
+      if (timer) clearTimeout(timer);
+      if (pendingAction === res) pendingAction = null;
+      a.innerHTML = '';
+      res(true);
+    };
+    pendingAction = res;
+    a.appendChild(mkBtn(label, 'primary', done));
+    if (G.auto) timer = setTimeout(done, delay != null ? delay : Math.max(450, G.speed * 1.5));
+  });
+}
+
+/**
+ * Fascia di scelta: un'etichetta che dice cosa stai scegliendo e una griglia
+ * di pulsanti tutti della stessa larghezza. Le due domande del gioco — il seme
+ * e il numero di prese — hanno così la stessa forma e lo stesso posto.
+ */
+function choiceGrid(titolo, colonne) {
+  const a = actionsBox();
+  /* il titolo si mette solo se la riga grande sopra non sta già facendo la
+     stessa domanda: due volte la stessa frase è rumore, non chiarezza */
+  if (titolo) a.appendChild(el('div', 'ctit', titolo));
+  const g = el('div', 'cgrid c' + colonne);
+  a.appendChild(g);
+  return g;
+}
+
+/** Scelta della briscola da parte dell'umano. */
+function askTrumpHuman() {
+  return new Promise(res => {
+    const g = choiceGrid('', 2);
+    for (const s of SUITS) {
+      const info = SUIT_INFO[s];
+      g.appendChild(mkBtn('<span class="bsym">' + info.sym + '</span><span class="bnome">' + info.name + '</span>',
+        'suit ' + info.color, () => {
+          pendingAction = null; $('#actions').innerHTML = ''; res(s);
+        }));
+    }
+    pendingAction = res;
+  });
+}
+
+/** Dichiarazione delle prese da parte dell'umano. */
+function askBidHuman() {
+  return new Promise(res => {
+    /* fino a 4 pulsanti stanno su una riga sola; da 5 in su si spezza in
+       due righe uguali, così non restano mai orfani in fondo */
+    const n = G.cardsPerHand + 1;
+    const col = n <= 4 ? n : Math.ceil(n / 2);
+    const g = choiceGrid('', col);
+    for (let b = 0; b <= G.cardsPerHand; b++) {
+      g.appendChild(mkBtn(String(b), 'bid', () => {
+        pendingAction = null; $('#actions').innerHTML = ''; res(b);
+      }));
+    }
+    pendingAction = res;
+  });
+}
+
+/* ============================ FLUSSO DI PARTITA ========================= */
+
+function setupPlayers(names) {
+  const keys = ['prudente', 'aggressiva', 'bilanciata', 'opportunista'];
+  G.players = [new Player(0, names[0] || 'Tu', true, null)];
+  for (let i = 1; i <= 4; i++) G.players.push(new Player(i, names[i] || ('CPU ' + i), false, keys[i - 1]));
+}
+
+async function newGame(names) {
+  GEN++;
+  const gen = GEN;
+  abortPending();
+  setupPlayers(names);
+  G.handIndex = 0; G.trump = null; G.trickNo = 0; G.cardsPerHand = 0;
+  G.playedCards = []; G.voids = emptyVoids(); G.trickLog = []; G.handLog = [];
+  G.debugLines = []; G.phase = 'idle'; G.currentPlayer = -1;
+  // Il mazziere della prima mano arriva dalla schermata iniziale (scelto o casuale).
+  if (typeof G.startDealer !== 'number') G.startDealer = Math.floor(RNG() * NUM_PLAYERS);
+  G.dealer = dealerOfHand(G.startDealer, 0);
+  G.chooser = trumpChooserOf(G.dealer);
+  $('#ovEnd').classList.add('hidden');
+  lbStartGame(G.players, G.difficulty);
+  render();
+  try {
+    await runGame(gen);
+  } catch (e) {
+    if (!(e instanceof AbortGame)) throw e;   // partita annullata: uscita silenziosa
+  }
+}
+
+async function runGame(gen) {
+  for (G.handIndex = 0; G.handIndex < HAND_SIZES.length; G.handIndex++) {
+    await playHand(gen);
+    checkGen(gen);
+  }
+  G.phase = 'gameEnd';
+  render();
+  showEndScreen();
+}
+
+async function playHand(gen) {
+  /* ---- Fase A: distribuzione ---- */
+  G.cardsPerHand = HAND_SIZES[G.handIndex];
+  G.dealer = dealerOfHand(G.startDealer, G.handIndex);
+  G.chooser = trumpChooserOf(G.dealer);
+  G.trump = null; G.trickNo = 0; G.playedCards = []; G.voids = emptyVoids(); G.trickLog = [];
+  G.players.forEach(p => p.resetHand());
+  G.trick = { leader: G.chooser, plays: [], ledSuit: null };
+
+  const deck = shuffleDeck(createDeck());
+  const dealt = dealCards(deck, NUM_PLAYERS, G.cardsPerHand);
+  G.players.forEach((p, i) => { p.hand = dealt.hands[i]; });
+  lbStartHand({ carte: G.cardsPerHand, mazziere: G.dealer, chooser: G.chooser });
+
+  G.phase = 'trump';
+  G.currentPlayer = G.chooser;
+  render();
+  await sleep(Math.min(500, G.speed));
+  checkGen(gen);
+
+  /* ---- Fase B: scelta della briscola ---- */
+  if (G.players[G.chooser].isHuman) {
+    const s = await askTrumpHuman();
+    checkGen(gen);
+    G.trump = s;
+  } else {
+    const r = chooseTrumpAI(G.chooser, aiCtx(G.chooser));
+    dbg(G.players[G.chooser].name + ' sceglie briscola ' + SUIT_INFO[r.suit].sym +
+        ' (EV ' + r.ev.toFixed(2) + ', dich. attesa ' + r.bid + ', P=' + (r.p * 100).toFixed(0) + '%)');
+    if (r.bluffFrom) {
+      G.players[G.chooser].bluffInfo = { kind: 'trump', from: r.bluffFrom, to: r.suit };
+      dbg('  ↳ depistaggio: il seme migliore sarebbe stato ' + SUIT_INFO[r.bluffFrom].sym);
+    }
+    await sleep(G.speed);
+    checkGen(gen);
+    G.trump = r.suit;
+  }
+  render();
+
+  /* ---- Fase C: dichiarazioni ---- */
+  G.phase = 'bidding';
+  for (const i of biddingOrder(G.chooser)) {
+    G.currentPlayer = i;
+    render();
+    const p = G.players[i];
+    if (p.isHuman) {
+      p.bid = await askBidHuman();
+      checkGen(gen);
+    } else {
+      const known = G.players.map(x => x.bid);
+      const r = estimateBidAI(i, G.trump, known, aiCtx(i));
+      await sleep(Math.round(G.speed * 0.75));
+      checkGen(gen);
+      p.bid = r.bid;
+      dbg(p.name + ' (' + p.pers.label + ') dichiara ' + r.bid +
+          ' — P(esatto)=' + (r.p * 100).toFixed(0) + '%, EV ' + r.ev.toFixed(2));
+      if (r.bluffFrom != null) {
+        p.bluffInfo = { kind: 'bid', from: r.bluffFrom, to: r.bid };
+        dbg('  ↳ bluff: la dichiarazione di massimo valore era ' + r.bluffFrom);
+      }
+    }
+    render();
+  }
+  G.trickLog = [];
+
+  /* ---- Fase D: gioco delle prese ---- */
+  G.phase = 'playing';
+  let leader = G.chooser;      // apre chi ha scelto la briscola
+  for (let t = 0; t < G.cardsPerHand; t++) {
+    leader = await playTrick(gen, leader);
+    checkGen(gen);
+  }
+
+  /* ---- Punteggio ---- */
+  const rows = scoreHand(G.players);
+  G.phase = 'handEnd';
+  G.currentPlayer = -1;
+  // Lo storico visibile è il segnapunti; qui resta solo una riga per il debug.
+  G.handLog.push('Mano ' + (G.handIndex + 1) + ' (' + G.cardsPerHand + ' carte, ' + SUIT_INFO[G.trump].sym + '): ' +
+    rows.map(r => r.name + ' ' + r.tricks + '/' + r.bid + ' → ' + r.pts).join(' · '));
+  dbg(G.handLog[G.handLog.length - 1]);
+  G.players.forEach((p, i) => p.handResults.push(rows[i]));
+  lbHandInfo({ briscola: SUIT_INFO[G.trump].name, briscolaSeme: SUIT_INFO[G.trump].name });
+  lbEndHand({ previsione: rows.map(r => r.bid), prese: rows.map(r => r.tricks),
+              punti: rows.map(r => r.pts) });
+  render();
+  showHandSummary(rows);
+  await waitContinue(G.handIndex === HAND_SIZES.length - 1 ? 'Vedi il risultato finale ▶' : 'Mano successiva ▶',
+                     G.auto ? Math.max(1400, G.speed * 2.4) : null);
+  checkGen(gen);
+  $('#actions').innerHTML = '';
+}
+
+async function playTrick(gen, leader) {
+  G.trick = { leader, plays: [], ledSuit: null };
+  G.phase = 'playing';
+  render();
+  await sleep(Math.min(320, G.speed));
+  checkGen(gen);
+
+  for (let i = 0; i < NUM_PLAYERS; i++) {
+    const pi = (leader + i) % NUM_PLAYERS;
+    const p = G.players[pi];
+    G.currentPlayer = pi;
+    render();
+    let card;
+    if (p.isHuman) {
+      card = await waitHumanCard();
+      checkGen(gen);
+      if (!card) throw new AbortGame();
+    } else {
+      const r = chooseCardAI(pi, aiCtx(pi));
+      await sleep(G.speed);
+      checkGen(gen);
+      card = r.card;
+      dbg(p.name + ' gioca ' + card.label + ' — ' + r.reason);
+    }
+    // Traccia i vuoti di seme: informazione preziosa per il Monte Carlo.
+    if (G.trick.ledSuit && card.suit !== G.trick.ledSuit) G.voids[pi][G.trick.ledSuit] = true;
+    const k = p.hand.indexOf(card);
+    if (k >= 0) p.hand.splice(k, 1);
+    if (i === 0) G.trick.ledSuit = card.suit;
+    G.trick.plays.push({ player: pi, card });
+    G.playedCards.push(card);
+    render();
+  }
+
+  const w = determineTrickWinner(G.trick.plays, G.trick.ledSuit, G.trump);
+  G.players[w].tricks++;
+  G.trickNo++;
+  G.trickLog.push({
+    n: G.trickNo,
+    winner: G.players[w].name,
+    detail: G.trick.plays.map(pl =>
+      '<span class="pl' + (pl.player === w ? ' win' : '') + '">' +
+      G.players[pl.player].name + ' ' + cardInline(pl.card, pl.player === w) + '</span>').join(' ')
+  });
+  lbTrick(G.trickNo, SUIT_INFO[G.trick.ledSuit].name,
+          G.trick.plays.map(pl => ({ g: pl.player, c: pl.card.label,
+                                     r: pl.card.rank, s: SUIT_INFO[pl.card.suit].name })), w);
+  G.phase = 'trickEnd';
+  G.currentPlayer = w;
+  render();
+  if (G.trickNo < G.cardsPerHand) {
+    await waitContinue('Prossima presa ▶');
+    checkGen(gen);
+  } else {
+    await sleep(Math.max(400, G.speed));
+    checkGen(gen);
+  }
+  // la presa viene "raccolta" da chi l'ha vinta
+  await animateTrickTo(w);
+  checkGen(gen);
+  G.trick = { leader: w, plays: [], ledSuit: null };
+  return w;
+}
+
+/* --------------------------- Riepiloghi a video -------------------------- */
+
+/** Riepilogo compatto sul tappeto a fine mano (il dettaglio è nel segnapunti). */
+function showHandSummary(rows) {
+  const info = rows.map(r =>
+    '<b style="color:' + (r.exact ? '#5ad07a' : '#ef6461') + '">' + r.name + ' ' + r.tricks + '/' + r.bid + '</b>'
+  ).join(' · ');
+  // A carte scoperte si può dire chi aveva depistato il tavolo.
+  const bluffs = G.players.filter(p => p.bluffInfo).map(p =>
+    p.bluffInfo.kind === 'bid'
+      ? p.name + ' ha dichiarato ' + p.bluffInfo.to + ' con una mano da ' + p.bluffInfo.from
+      : p.name + ' ha chiamato ' + SUIT_INFO[p.bluffInfo.to].name + ' avendo meglio a ' +
+        SUIT_INFO[p.bluffInfo.from].name);
+  $('#trickInfo').innerHTML = 'Fine mano ' + (G.handIndex + 1) + ' — ' + info +
+    (bluffs.length ? '<div class="bluffnote">Bluff: ' + bluffs.join(' · ') + '</div>' : '');
+}
+
+function showEndScreen() {
+  const rank = G.players.slice().sort((a, b) => b.score - a.score);
+  const exact = p => p.handResults.filter(r => r.exact).length;
+  let html = '<h1>Fine partita</h1><p>14 mani completate. Ecco la classifica finale.</p>' +
+    '<table class="final"><thead><tr><th>#</th><th>Giocatore</th><th class="n">Previsioni esatte</th><th class="n">Punti</th></tr></thead><tbody>';
+  rank.forEach((p, i) => {
+    html += '<tr class="' + (p.isHuman ? 'me' : '') + '"><td>' + (i + 1) + '</td><td>' + p.name +
+      (p.isHuman ? '' : ' <span style="color:#9fb0be;font-size:11px">(' + p.pers.label + ')</span>') +
+      '</td><td class="n">' + exact(p) + '/14</td><td class="n">' + p.score + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  const me = G.players[0];
+  const pos = rank.indexOf(me) + 1;
+  html += '<p style="margin-top:12px;color:#e8eef3">Hai chiuso <b>' + pos + '°</b> con <b>' + me.score +
+          '</b> punti e ' + exact(me) + ' previsioni esatte su 14.</p>' +
+          '<button class="btn primary" id="btnAgain">Gioca ancora</button>';
+  lbEndGame({ classifica: rank.map(p => ({ nome: p.name, punti: p.score, esatte: exact(p) })),
+              posizione_umano: pos });
+  $('#endBox').innerHTML = html;
+  $('#ovEnd').classList.remove('hidden');
+  $('#btnAgain').onclick = () => { $('#ovEnd').classList.add('hidden'); $('#ovStart').classList.remove('hidden'); };
+}
+/* ==========================================================================
+   CLAG — scheda Debug: registro delle partite
+   --------------------------------------------------------------------------
+   Tiene traccia di quello che succede al tavolo e lo restituisce in due CSV:
+
+     • "mani"    — una riga per giocatore per ogni mano: previsione, prese
+                   realizzate, se ha centrato, punti guadagnati e progressivo.
+                   È il riepilogo da cui si vede subito dove si perde.
+     • "giocate" — una riga per ogni carta giocata, con presa, ordine di
+                   uscita, seme di partenza e chi ha vinto la presa. Serve a
+                   ricostruire una mano e capire *perché* è andata storta.
+
+   Il separatore è il punto e virgola, quello che Excel in italiano si aspetta.
+   Il registro vive in memoria e, se il browser lo consente, viene salvato in
+   locale: nessun dato lascia il dispositivo. Si conservano al massimo
+   LB_MAX_GAMES partite; oltre, si buttano le più vecchie.
+   ========================================================================== */
+
+const LB_KEY = 'clag-registro-v1';
+const LB_MAX_GAMES = 100;
+
+const LB = {
+  games: [],        // partite, dalla più vecchia alla più recente
+  current: null,    // partita in corso
+  hand: null,       // mano in corso
+  storage: true     // diventa false se il browser rifiuta di salvare
+};
+
+/* ------------------------------ utilità ------------------------------- */
+
+const lbNow = () => new Date().toISOString();
+const lbId = () => Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+
+/** Data leggibile per il CSV: 2026-09-05 18:42. */
+function lbStamp(iso) {
+  const d = new Date(iso), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function lbLoad() {
+  try {
+    const raw = window.localStorage.getItem(LB_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && Array.isArray(data.partite)) LB.games = data.partite;
+    }
+  } catch (e) { LB.storage = false; }
+}
+
+function lbSave() {
+  if (!LB.storage) return;
+  try {
+    while (LB.games.length > LB_MAX_GAMES) LB.games.shift();
+    window.localStorage.setItem(LB_KEY, JSON.stringify({ v: 1, partite: LB.games }));
+  } catch (e) { LB.storage = false; }   // memoria piena o navigazione privata
+}
+
+/* --------------------------- registrazione ---------------------------- */
+
+function lbStartGame(players, difficulty) {
+  LB.current = {
+    id: lbId(), inizio: lbNow(), fine: null, livello: difficulty,
+    giocatori: players.map(p => ({ nome: p.name, umano: !!p.isHuman,
+                                   stile: p.pers ? p.pers.label : '' })),
+    mani: [], completa: false
+  };
+  LB.hand = null;
+  LB.games.push(LB.current);
+  while (LB.games.length > LB_MAX_GAMES) LB.games.shift();
+  lbSave();
+}
+
+function lbStartHand(info) {
+  if (!LB.current) return;
+  LB.hand = Object.assign({ n: LB.current.mani.length + 1, prese: [], esito: null }, info || {});
+  LB.current.mani.push(LB.hand);
+}
+
+function lbHandInfo(info) { if (LB.hand) Object.assign(LB.hand, info || {}); }
+
+/** Una presa completa: `giocate` in ordine di uscita. */
+function lbTrick(n, ledSuit, giocate, vincitore) {
+  if (!LB.hand) return;
+  LB.hand.prese.push({ n: n, seme: ledSuit, giocate: giocate, vincitore: vincitore });
+}
+
+function lbEndHand(esito) {
+  if (!LB.hand) return;
+  LB.hand.esito = esito || null;
+  LB.hand = null;
+  lbSave();
+}
+
+function lbEndGame(finale) {
+  if (!LB.current) return;
+  LB.current.fine = lbNow();
+  LB.current.finale = finale || null;
+  LB.current.completa = true;
+  lbSave();
+  LB.current = null; LB.hand = null;
+}
+
+/* ------------------------------- esporta ------------------------------ */
+
+function lbCell(v) {
+  if (v == null) return '';
+  const s = String(v);
+  return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+const lbRow = (cols, r) => cols.map(c => lbCell(r[c])).join(';');
+
+const LB_HAND_COLS = ['partita', 'data', 'livello', 'mano', 'carte', 'mazziere', 'briscola',
+  'sceglie_briscola', 'giocatore', 'umano', 'previsione', 'prese_fatte', 'scarto',
+  'centrata', 'punti_mano', 'punti_totali', 'somma_previsioni', 'differenza_tavolo'];
+
+/** Riepilogo: una riga per giocatore per ogni mano giocata. */
+function lbHandsCSV() {
+  const out = [LB_HAND_COLS.join(';')];
+  LB.games.forEach(g => {
+    const nomi = g.giocatori.map(p => p.nome);
+    const run = nomi.map(() => 0);
+    g.mani.forEach(h => {
+      const e = h.esito;
+      if (!e) return;                         // mano interrotta: non la riporto
+      const somma = e.previsione.reduce((a, b) => a + b, 0);
+      nomi.forEach((nome, i) => {
+        run[i] += e.punti[i];
+        out.push(lbRow(LB_HAND_COLS, {
+          partita: g.id, data: lbStamp(g.inizio), livello: g.livello,
+          mano: h.n, carte: h.carte, mazziere: nomi[h.mazziere], briscola: h.briscola,
+          sceglie_briscola: nomi[h.chooser], giocatore: nome, umano: g.giocatori[i].umano ? 1 : 0,
+          previsione: e.previsione[i], prese_fatte: e.prese[i],
+          scarto: e.prese[i] - e.previsione[i],
+          centrata: e.prese[i] === e.previsione[i] ? 1 : 0,
+          punti_mano: e.punti[i], punti_totali: run[i],
+          somma_previsioni: somma, differenza_tavolo: somma - h.carte
+        }));
+      });
+    });
+  });
+  return out.join('\n');
+}
+
+const LB_PLAY_COLS = ['partita', 'data', 'livello', 'mano', 'carte', 'briscola', 'presa',
+  'seme_partenza', 'ordine', 'giocatore', 'umano', 'carta', 'rango', 'seme', 'e_briscola',
+  'vince_presa', 'previsione', 'prese_fatte', 'centrata'];
+
+/** Dettaglio: una riga per ogni carta giocata. */
+function lbPlaysCSV() {
+  const out = [LB_PLAY_COLS.join(';')];
+  LB.games.forEach(g => {
+    const nomi = g.giocatori.map(p => p.nome);
+    g.mani.forEach(h => {
+      const e = h.esito;
+      h.prese.forEach(t => {
+        t.giocate.forEach((pl, k) => {
+          const i = pl.g;
+          out.push(lbRow(LB_PLAY_COLS, {
+            partita: g.id, data: lbStamp(g.inizio), livello: g.livello,
+            mano: h.n, carte: h.carte, briscola: h.briscola,
+            presa: t.n, seme_partenza: t.seme, ordine: k + 1,
+            giocatore: nomi[i], umano: g.giocatori[i].umano ? 1 : 0,
+            carta: pl.c, rango: pl.r, seme: pl.s,
+            e_briscola: pl.s === h.briscolaSeme ? 1 : 0,
+            vince_presa: nomi[t.vincitore],
+            previsione: e ? e.previsione[i] : '',
+            prese_fatte: e ? e.prese[i] : '',
+            centrata: e ? (e.prese[i] === e.previsione[i] ? 1 : 0) : ''
+          }));
+        });
+      });
+    });
+  });
+  return out.join('\n');
+}
+
+/** Numeri riassuntivi mostrati nella scheda. */
+function lbStats() {
+  let mani = 0, carte = 0, complete = 0, centrate = 0, maniUmano = 0, punti = 0;
+  LB.games.forEach(g => {
+    if (g.completa) complete++;
+    const io = g.giocatori.findIndex(p => p.umano);
+    g.mani.forEach(h => {
+      mani++;
+      h.prese.forEach(t => { carte += t.giocate.length; });
+      if (h.esito && io >= 0) {
+        maniUmano++;
+        punti += h.esito.punti[io];
+        if (h.esito.prese[io] === h.esito.previsione[io]) centrate++;
+      }
+    });
+  });
+  return { partite: LB.games.length, complete, mani, carte,
+           centrate, maniUmano, punti,
+           precisione: maniUmano ? Math.round(100 * centrate / maniUmano) : 0 };
+}
+
+/* ------------------------- scarico del file --------------------------- */
+
+/** Tenta il download. In alcune anteprime il browser lo blocca senza dirlo. */
+function lbDownload(name, text) {
+  try {
+    const blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 800);
+    return true;
+  } catch (e) { return false; }
+}
+
+function lbFileName(kind) {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return 'clag-' + kind + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+         '-' + p(d.getHours()) + p(d.getMinutes()) + '.csv';
+}
+
+/* --------------------------- scheda Debug ----------------------------- */
+
+let LB_TAB = 'storico';
+
+function lbRenderPanel() {
+  const st = lbStats();
+  const box = $('#dbgBox');
+  const tab = (k, label) => '<button class="dtab' + (LB_TAB === k ? ' on' : '') +
+                            '" data-tab="' + k + '">' + label + '</button>';
+
+  let body;
+  if (LB_TAB === 'analisi') {
+    body = anCorpoScheda();
+  } else if (LB_TAB === 'storico') {
+    body =
+      '<p>Ogni mano giocata resta registrata: scaricala e guarda con calma dove hai ' +
+      'sbagliato la previsione. I dati non escono da questo dispositivo.</p>' +
+      '<div class="lbstats">' +
+        '<div><b>' + st.partite + '</b><span>partite in archivio</span></div>' +
+        '<div><b>' + st.mani + '</b><span>mani registrate</span></div>' +
+        '<div><b>' + st.precisione + '%</b><span>tue previsioni centrate</span></div>' +
+        '<div><b>' + st.punti + '</b><span>punti tuoi in totale</span></div>' +
+      '</div>' +
+      (LB.storage
+        ? '<p class="lbnote2">Si conservano le ultime <b>' + LB_MAX_GAMES + '</b> partite: ' +
+          'oltre, le più vecchie vengono buttate.</p>'
+        : '<p class="warn2">Questo browser non consente di salvare in locale: qui c’è solo ' +
+          'quello che hai giocato da quando hai aperto la pagina.</p>') +
+      '<div class="dbtns">' +
+        '<button class="btn primary" id="lbCsvMani">⬇ Riepilogo mani (CSV)</button>' +
+        '<button class="btn" id="lbCsvGiocate">⬇ Carta per carta (CSV)</button>' +
+        '<button class="btn" id="lbCopia">Copia negli appunti</button>' +
+        '<button class="btn danger" id="lbSvuota">Cancella lo storico</button>' +
+      '</div>' +
+      '<div id="lbNote" class="lbnote"></div>' +
+      '<textarea id="lbText" class="lbtext hidden" readonly></textarea>';
+  } else {
+    const lines = (G.debugLines || []).slice(-120);
+    body =
+      '<p>Il ragionamento delle CPU, mano per mano: quante simulazioni hanno fatto e ' +
+      'con quale probabilità di centrare la dichiarazione.</p>' +
+      '<div class="dbg" style="max-height:340px">' +
+        (lines.length ? lines.join('\n') : 'Ancora niente: gioca qualche presa.') +
+      '</div>' +
+      '<div class="dbtns"><button class="btn" id="lbDbgCopia">Copia il registro</button></div>' +
+      '<div id="lbNote" class="lbnote"></div>' +
+      '<textarea id="lbText" class="lbtext hidden" readonly></textarea>';
+  }
+
+  box.innerHTML = '<h1>Debug</h1>' +
+    '<div class="dtabs">' + tab('storico', 'Storico partite') + tab('analisi', 'Analisi') +
+      tab('motore', 'Motore IA') + '</div>' +
+    body +
+    '<div class="dbtns" style="margin-top:14px"><button class="btn" id="lbChiudi">Chiudi</button></div>';
+
+  box.querySelectorAll('.dtab').forEach(b => {
+    b.onclick = () => { LB_TAB = b.getAttribute('data-tab'); lbRenderPanel(); };
+  });
+  $('#lbChiudi').onclick = () => $('#ovDbg').classList.add('hidden');
+
+  const nota = m => { $('#lbNote').textContent = m; };
+  const mostra = testo => { const t = $('#lbText'); t.value = testo; t.classList.remove('hidden'); return t; };
+  const copia = async testo => {
+    const t = mostra(testo);
+    try { await navigator.clipboard.writeText(testo); nota('Copiato negli appunti.'); }
+    catch (e) { t.focus(); t.select(); nota('Selezionato: premi Ctrl+C (o ⌘C) per copiare.'); }
+  };
+
+  if (LB_TAB === 'analisi') {
+    anCollegaScheda();
+  } else if (LB_TAB === 'storico') {
+    const esporta = (kind, testo) => {
+      if (!LB.games.length) return nota('Non hai ancora giocato niente.');
+      lbDownload(lbFileName(kind), testo);
+      nota('Se il file non arriva nei download — capita nelle pagine condivise — usa ' +
+           '“Copia negli appunti” e incolla in un foglio di calcolo.');
+    };
+    $('#lbCsvMani').onclick = () => esporta('mani', lbHandsCSV());
+    $('#lbCsvGiocate').onclick = () => esporta('giocate', lbPlaysCSV());
+    $('#lbCopia').onclick = () => {
+      if (!LB.games.length) return nota('Non hai ancora giocato niente.');
+      copia(lbHandsCSV());
+    };
+    $('#lbSvuota').onclick = () => {
+      if (!LB.games.length) return nota('Lo storico è già vuoto.');
+      if (!window.confirm('Cancello tutte le ' + LB.games.length +
+                          ' partite registrate? Non si può tornare indietro.')) return;
+      LB.games = []; LB.current = null; LB.hand = null;
+      try { window.localStorage.removeItem(LB_KEY); } catch (e) { /* pazienza */ }
+      lbRenderPanel();
+      nota('Storico cancellato.');
+    };
+  } else {
+    $('#lbDbgCopia').onclick = () => copia((G.debugLines || []).join('\n') || '(vuoto)');
+  }
+}
+
+function lbOpenPanel() { lbRenderPanel(); $('#ovDbg').classList.remove('hidden'); }
+
+lbLoad();
+
+
+/* ------------------------ scheda "Analisi" ---------------------------- */
+
+let AN_ULTIMA = null;     // risultato dell'ultima analisi fatta
+let AN_INCORSO = false;
+
+/** Partite analizzabili: le più recenti con almeno una mano completa. */
+function anPartiteDisponibili() {
+  return LB.games.filter(g => g.mani.some(h => h.esito && h.prese.length))
+                 .slice(-8).reverse();
+}
+
+function anVoce(v, etichetta, testo) {
+  return '<div><b>' + v + '</b><span>' + etichetta + '</span></div>';
+}
+
+function anCorpoScheda() {
+  const partite = anPartiteDisponibili();
+  if (!partite.length) {
+    return '<p>Qui finisce l\'analisi delle tue partite: per ogni mano sbagliata ti dico ' +
+           'se è stata la dichiarazione, una carta giocata male, informazione che non potevi ' +
+           'avere, o sfortuna pura. Gioca una partita e torna qui.</p>';
+  }
+  let h = '<p>Per ogni mano che non hai centrato: di chi è la colpa. I conti si fanno qui ' +
+          'sul dispositivo con poche simulazioni, quindi i numeri sono indicativi.</p>' +
+          '<div class="dbtns"><select id="anScelta" class="btn">' +
+          partite.map((g, i) => '<option value="' + i + '">' + lbStamp(g.inizio) + ' · ' +
+            g.mani.filter(m => m.esito).length + ' mani</option>').join('') +
+          '</select><button class="btn primary" id="anVai">Analizza</button></div>';
+
+  if (AN_INCORSO) h += '<p class="lbnote2">Sto ripercorrendo la partita, un momento…</p>';
+  if (AN_ULTIMA) h += anTabella(AN_ULTIMA);
+  return h;
+}
+
+function anTabella(r) {
+  const colore = v => v === 'centrata' ? 'var(--dim)'
+                    : v === 'sfortuna' || v === 'informazione' ? 'var(--gold)' : '#ff9a8a';
+  let h = '<div class="lbstats">' +
+    anVoce(r.abilita + '/10', 'abilità') +
+    anVoce(r.sfortuna + '/10', 'sfortuna') +
+    anVoce(r.centrate + '/' + r.mani, 'mani centrate') +
+    anVoce(r.attesi.toFixed(1), 'mani attese') +
+    '</div>';
+  h += '<p class="lbnote2">Punti attesi persi per la dichiarazione: <b>' +
+       r.costoDich.toFixed(1) + '</b> · per carte giocate male: <b>' +
+       r.perditaGioco.toFixed(1) + '</b></p>';
+  h += '<div class="dbg" style="max-height:320px">';
+  r.righe.forEach(x => {
+    if (x.verdetto === 'centrata') return;
+    let riga = 'mano ' + x.mano + ' (' + x.carte + ' carte) · dichiarato ' + x.dich +
+               ', fatte ' + x.fatte + ' → ' + x.verdetto.toUpperCase();
+    if (x.verdetto === 'dichiarazione')
+      riga += '\n    il numero migliore era ' + x.migliore + ': ' +
+              x.costo.toFixed(1) + ' punti attesi lasciati lì';
+    if (x.verdetto === 'errore di gioco' && x.dettaglio)
+      riga += '\n    presa ' + x.dettaglio.presa + ': ' + x.dettaglio.giocata + ' → ' +
+              Math.round(100 * x.dettaglio.p) + '%, meglio ' + x.dettaglio.migliore + ' → ' +
+              Math.round(100 * x.dettaglio.pMigliore) + '%';
+    if (x.verdetto === 'informazione')
+      riga += '\n    hai giocato bene: il numero si poteva fare solo vedendo le carte';
+    if (x.verdetto === 'sfortuna')
+      riga += '\n    non si poteva fare nemmeno a carte scoperte' + (x.troncata ? ' (esame parziale)' : '');
+    h += riga + '\n';
+  });
+  const centrate = r.righe.filter(x => x.verdetto === 'centrata').length;
+  h += centrate ? '\n' + centrate + ' mani centrate, niente da dire.' : '';
+  h += '</div>';
+  return h;
+}
+
+function anCollegaScheda() {
+  const vai = $('#anVai');
+  if (!vai) return;
+  vai.onclick = () => {
+    const partite = anPartiteDisponibili();
+    const i = parseInt($('#anScelta').value, 10) || 0;
+    const g = partite[i];
+    if (!g) return;
+    AN_INCORSO = true; AN_ULTIMA = null; lbRenderPanel();
+    setTimeout(() => {
+      try { AN_ULTIMA = analizzaPartita(g); }
+      catch (err) { AN_ULTIMA = null; }
+      AN_INCORSO = false; lbRenderPanel();
+    }, 40);
+  };
+}
+/* ==========================================================================
+   CLAG — Analisi della partita
+   --------------------------------------------------------------------------
+   Ripercorre una partita registrata e, per ogni mano che non hai centrato,
+   decide di chi è la colpa. Quattro possibilità, in quest'ordine:
+
+     · dichiarazione — con le tue carte c'era un numero che rendeva di più;
+     · errore di gioco — la dichiarazione era giusta, ma una carta giocata
+       valeva molto meno della migliore che avevi a disposizione;
+     · informazione — hai giocato bene, il numero si poteva fare solo
+       vedendo le carte degli altri;
+     · sfortuna — non si poteva fare nemmeno a carte scoperte.
+
+   Alla fine due voti da 1 a 10: abilità (quanto è costato quello che
+   dipendeva da te) e sfortuna (quanto il tavolo ti ha remato contro).
+   Gira sul dispositivo, con meno simulazioni di un'analisi fatta con calma:
+   i numeri sono indicativi, non sentenze.
+   ========================================================================== */
+
+const anSimsDich = cph => Math.max(150, Math.min(500, Math.round(1400 / cph)));
+const AN_SIMS_CARTA = 90;   // simulazioni per ogni carta candidata
+const AN_FOGLIE_MAX = 30000; // tetto all'esplorazione a carte scoperte
+const AN_SOGLIA_DICH = 1.2;  // punti attesi persi oltre i quali è colpa della dichiarazione
+const AN_SOGLIA_GIOCO = 0.10; // scarto di probabilità oltre il quale è errore di gioco
+
+const AN_NOME2KEY = (() => {
+  const m = {};
+  for (const k of SUITS) m[SUIT_INFO[k].name] = k;
+  return m;
+})();
+
+/** Le carte dell'umano in una mano registrata, nell'ordine in cui le ha giocate. */
+function anCarteDi(h, chi) {
+  const out = [];
+  h.prese.forEach(t => t.giocate.forEach(pl => {
+    if (pl.g === chi) out.push(new Card(AN_NOME2KEY[pl.s], pl.r));
+  }));
+  return out;
+}
+
+/** Contesto per il motore, come se fossimo al momento della dichiarazione. */
+function anCtxIniziale(mia, cph, trump, leader) {
+  return {
+    cardsPerHand: cph, myHand: mia,
+    pool: createDeck().filter(c => !mia.some(m => m.id === c.id)),
+    needs: [0, 1, 2, 3, 4].map(() => cph),
+    voids: emptyVoids(), tricks: [0, 0, 0, 0, 0],
+    bids: [null, null, null, null, null],
+    persArr: [0, 1, 2, 3, 4].map(() => PERSONALITIES.bilanciata),
+    trump, ledSuit: null, plays: [], leader
+  };
+}
+
+/** Quanto rendeva ogni numero dichiarabile, con le carte in mano e basta. */
+function anDichiarazione(mia, cph, trump, leader, io, scelto) {
+  const ctx = anCtxIniziale(mia, cph, trump, leader);
+  ctx.needs[io] = 0;
+  const noBids = [null, null, null, null, null];
+  const P = [], ev = [];
+  for (let b = 0; b <= cph; b++) {
+    const d = simulateHandMonteCarlo(io, trump, b, anSimsDich(cph), noBids, ctx);
+    P.push(d[b] / d.total);
+    ev.push(P[b] * (10 + 2 * b));
+  }
+  let best = 0;
+  ev.forEach((e, b) => { if (e > ev[best]) best = b; });
+  return { P, ev, best, costo: Math.max(0, ev[best] - ev[scelto]), p: P[scelto] };
+}
+
+/**
+ * Ripercorre la mano davvero giocata e, a ogni bivio dell'umano, confronta la
+ * carta scelta con la migliore possibile *senza vedere* le carte degli altri.
+ */
+function anGiocate(h, io, cph, trump, bids) {
+  let mano = anCarteDi(h, io);
+  const giocate = [], voids = emptyVoids(), vinte = [0, 0, 0, 0, 0];
+  const persArr = [0, 1, 2, 3, 4].map(() => PERSONALITIES.bilanciata);
+  let peggiore = 0, dettaglio = null;
+
+  h.prese.forEach((t, ti) => {
+    const led = AN_NOME2KEY[t.giocate[0].s];
+    const plays = [];
+    for (const pl of t.giocate) {
+      const pi = pl.g, c = new Card(AN_NOME2KEY[pl.s], pl.r);
+      if (pi === io) {
+        const legali = getLegalCards(mano, plays.length ? led : null);
+        if (legali.length > 1) {
+          const needs = [0, 1, 2, 3, 4].map(i => i === io ? 0 :
+            Math.max(0, cph - ti - (plays.some(p => p.player === i) ? 1 : 0)));
+          const pool = unseenPool(mano, giocate.concat(plays.map(p => p.card)));
+          const punteggi = legali.map(cand => {
+            let ok = 0;
+            for (let s = 0; s < AN_SIMS_CARTA; s++) {
+              const hs = sampleDeal(pool, needs, voids);
+              hs[io] = mano.filter(x => x.id !== cand.id);
+              const tr = vinte.slice();
+              playout(hs, bids.slice(), tr, trump, {
+                leader: plays.length ? plays[0].player : io,
+                plays: plays.concat([{ player: io, card: cand }]),
+                ledSuit: plays.length ? led : cand.suit
+              }, persArr);
+              if (tr[io] === bids[io]) ok++;
+            }
+            return { c: cand, p: ok / AN_SIMS_CARTA };
+          }).sort((a, b) => b.p - a.p);
+          const mia = punteggi.find(x => x.c.id === c.id);
+          const scarto = punteggi[0].p - (mia ? mia.p : 0);
+          if (scarto > peggiore) {
+            peggiore = scarto;
+            dettaglio = { presa: ti + 1, giocata: c.label, p: mia ? mia.p : 0,
+                          migliore: punteggi[0].c.label, pMigliore: punteggi[0].p };
+          }
+        }
+        mano = mano.filter(x => x.id !== c.id);
+      }
+      if (plays.length && c.suit !== led) voids[pi][led] = true;
+      plays.push({ player: pi, card: c });
+    }
+    vinte[determineTrickWinner(plays, led, trump)]++;
+    plays.forEach(p => giocate.push(p.card));
+  });
+  return { scarto: peggiore, dettaglio };
+}
+
+/**
+ * A carte scoperte: quali numeri di prese erano raggiungibili? Si esplorano
+ * tutte le sequenze legali delle carte dell'umano; gli altri rispondono con
+ * la loro politica. Con un tetto alle combinazioni, per non piantare il
+ * telefono sulle mani lunghe.
+ */
+function anCarteScoperte(h, io, cph, trump, bids) {
+  const mani = [[], [], [], [], []];
+  h.prese.forEach(t => t.giocate.forEach(pl => {
+    mani[pl.g].push(new Card(AN_NOME2KEY[pl.s], pl.r));
+  }));
+  const persArr = [0, 1, 2, 3, 4].map(() => PERSONALITIES.bilanciata);
+  const leader0 = h.prese[0].giocate[0].g;
+  const possibili = new Set();
+  let foglie = 0, troncata = false;
+
+  function giocaMano(hs, vinte, lead, t) {
+    if (foglie > AN_FOGLIE_MAX) { troncata = true; return; }
+    if (t === cph) { possibili.add(vinte[io]); foglie++; return; }
+    (function passo(hs2, plays, k) {
+      if (foglie > AN_FOGLIE_MAX) { troncata = true; return; }
+      if (k === NUM_PLAYERS) {
+        const led = plays[0].card.suit;
+        const w = determineTrickWinner(plays, led, trump);
+        const v = vinte.slice(); v[w]++;
+        giocaMano(hs2, v, w, t + 1);
+        return;
+      }
+      const pi = (lead + k) % NUM_PLAYERS;
+      const led = plays.length ? plays[0].card.suit : null;
+      if (pi === io) {
+        for (const c of getLegalCards(hs2[pi], led)) {
+          const h3 = hs2.map(x => x.slice());
+          h3[pi] = h3[pi].filter(x => x !== c);
+          passo(h3, plays.concat([{ player: pi, card: c }]), k + 1);
+        }
+      } else {
+        const c = policyChooseCard(hs2[pi], led, trump, plays, bids[pi], vinte[pi],
+                                   NUM_PLAYERS - 1 - k, persArr[pi],
+                                   { bids, tricks: vinte, me: pi });
+        const h3 = hs2.map(x => x.slice());
+        h3[pi] = h3[pi].filter(x => x !== c);
+        passo(h3, plays.concat([{ player: pi, card: c }]), k + 1);
+      }
+    })(hs, [], 0);
+  }
+  giocaMano(mani.map(x => x.slice()), [0, 0, 0, 0, 0], leader0, 0);
+  return { possibili, troncata };
+}
+
+/** Analisi completa di una partita registrata. */
+function analizzaPartita(g) {
+  const io = g.giocatori.findIndex(p => p.umano);
+  if (io < 0) return null;
+  const righe = [];
+  let costoDich = 0, perditaGioco = 0, attesi = 0, centrate = 0, valide = 0;
+
+  g.mani.forEach(h => {
+    const e = h.esito;
+    if (!e || !h.prese.length) return;
+    const cph = h.carte, trump = AN_NOME2KEY[h.briscolaSeme || h.briscola];
+    if (!trump) return;
+    const mia = anCarteDi(h, io);
+    if (mia.length !== cph) return;                  // mano incompleta: la salto
+    const bids = e.previsione.slice(), fatte = e.prese[io], scelto = bids[io];
+    const leader0 = h.prese[0].giocate[0].g;
+    valide++;
+
+    const d = anDichiarazione(mia, cph, trump, leader0, io, scelto);
+    /* con poche simulazioni ogni mano risulta "migliorabile" di qualche
+       decimo: sotto la soglia è rumore, non una scelta sbagliata */
+    if (d.costo > AN_SOGLIA_DICH) costoDich += d.costo - 0.6;   // 0,6 è il rumore del calcolo
+    attesi += d.p;
+    const riga = { mano: h.n, carte: cph, dich: scelto, fatte,
+                   costo: d.costo, migliore: d.best, p: d.p, verdetto: 'centrata' };
+
+    if (fatte === scelto) { centrate++; righe.push(riga); return; }
+
+    const gio = anGiocate(h, io, cph, trump, bids);
+    riga.scarto = gio.scarto; riga.dettaglio = gio.dettaglio;
+    if (d.costo > AN_SOGLIA_DICH) {
+      riga.verdetto = 'dichiarazione';
+    } else if (gio.scarto > AN_SOGLIA_GIOCO) {
+      riga.verdetto = 'errore di gioco';
+      perditaGioco += gio.scarto * (10 + 2 * scelto);
+    } else {
+      const sc = anCarteScoperte(h, io, cph, trump, bids);
+      riga.verdetto = sc.possibili.has(scelto) ? 'informazione' : 'sfortuna';
+      riga.troncata = sc.troncata;
+    }
+    righe.push(riga);
+  });
+
+  const perse = costoDich + perditaGioco;
+  const abilita = Math.max(1, Math.min(10, Math.round(10 - perse / 3.2)));
+  /* sfortuna: quanto sei rimasto sotto le mani che ti aspettavi di centrare,
+     più il peso delle mani perse per motivi che non dipendevano da te */
+  let malasorte = (attesi - centrate) * 1.5;
+  righe.forEach(x => {
+    if (x.verdetto === 'sfortuna') malasorte += 0.7;
+    else if (x.verdetto === 'informazione') malasorte += 0.35;
+  });
+  const sfortuna = Math.max(1, Math.min(10, Math.round(5.5 + malasorte)));
+  return { righe, costoDich, perditaGioco, attesi, centrate, mani: valide, abilita, sfortuna };
+}
+/* ==========================================================================
+   CLAG — Test interni + avvio
+   --------------------------------------------------------------------------
+   Blocco 4/4 : suite di test eseguibile da console (CLAG.runRulesTests()),
+   simulazione completa di una partita e wiring dei controlli.
+   ========================================================================== */
+
+/* ============================== TEST SUITE ============================== */
+
+function runRulesTests(verbose) {
+  const res = [];
+  const t = (name, fn) => {
+    try {
+      const info = fn();
+      res.push({ test: name, esito: 'OK', info: info == null ? '' : String(info) });
+    } catch (e) {
+      res.push({ test: name, esito: 'FALLITO', info: e.message });
+    }
+  };
+  const assert = (cond, msg) => { if (!cond) throw new Error(msg || 'asserzione fallita'); };
+
+  /* 1 — composizione del mazzo */
+  t('Mazzo da 40 carte, senza 8/9/10', () => {
+    const d = createDeck();
+    assert(d.length === 40, 'attese 40 carte, trovate ' + d.length);
+    assert(new Set(d.map(c => c.id)).size === 40, 'carte duplicate');
+    assert(!d.some(c => ['8', '9', '10'].indexOf(c.rank) >= 0), 'presenti 8/9/10');
+    SUITS.forEach(s => assert(d.filter(c => c.suit === s).length === 10, 'seme ' + s + ' incompleto'));
+    return '4 semi × 10 valori';
+  });
+
+  /* 2 — gerarchia delle carte */
+  t('Gerarchia A>3>K>Q>J>7>6>5>4>2', () => {
+    const order = RANKS.map(r => getCardStrength(new Card('C', r)));
+    for (let i = 1; i < order.length; i++) assert(order[i - 1] > order[i], 'ordine errato in ' + RANKS[i]);
+    assert(getCardStrength(new Card('P', 'A')) === 10 && getCardStrength(new Card('P', '2')) === 1, 'estremi errati');
+    return order.join('>');
+  });
+
+  /* 3 — struttura delle 14 mani */
+  t('14 mani con 1..7,7..1 carte', () => {
+    assert(HAND_SIZES.length === 14, 'mani ≠ 14');
+    assert(HAND_SIZES.join(',') === '1,2,3,4,5,6,7,7,6,5,4,3,2,1', 'sequenza errata');
+    assert(HAND_SIZES.every(n => n * NUM_PLAYERS <= 40), 'mano non distribuibile con 40 carte');
+    return 'max 7×5 = 35 carte distribuite';
+  });
+
+  /* 4 — distribuzione */
+  t('Distribuzione corretta per ogni mano', () => {
+    for (const n of HAND_SIZES) {
+      const d = shuffleDeck(createDeck(), mulberry32(n * 7 + 1));
+      const { hands, rest } = dealCards(d, NUM_PLAYERS, n);
+      assert(hands.length === NUM_PLAYERS, 'giocatori errati');
+      hands.forEach(h => assert(h.length === n, 'mano da ' + n + ' non rispettata'));
+      assert(rest.length === 40 - n * NUM_PLAYERS, 'resto mazzo errato');
+      const ids = new Set([].concat.apply([], hands).map(c => c.id));
+      assert(ids.size === n * NUM_PLAYERS, 'carte duplicate nella distribuzione');
+    }
+    return 'tutte e 14 le mani verificate';
+  });
+
+  /* 5 — obbligo di risposta al seme */
+  t('Obbligo di rispondere al seme', () => {
+    const hand = [new Card('C', 'A'), new Card('C', '4'), new Card('P', 'K'), new Card('F', '2')];
+    const legal = getLegalCards(hand, 'C');
+    assert(legal.length === 2 && legal.every(c => c.suit === 'C'), 'non forza la risposta al seme');
+    const hand2 = [new Card('P', 'K'), new Card('F', '2')];
+    assert(getLegalCards(hand2, 'C').length === 2, 'senza il seme deve poter giocare tutto');
+    assert(getLegalCards(hand, null).length === 4, 'in apertura tutte le carte sono legali');
+    return 'risposta obbligata, taglio/scarto liberi';
+  });
+
+  /* 6 — vincitore della presa */
+  t('Determinazione del vincitore della presa', () => {
+    const p = (pl, s, r) => ({ player: pl, card: new Card(s, r) });
+    // carta più alta del seme di partenza
+    assert(determineTrickWinner([p(0, 'C', 'K'), p(1, 'C', 'A'), p(2, 'C', '2')], 'C', 'P') === 1, 'A di colore deve vincere');
+    // la briscola batte qualsiasi carta del seme di partenza
+    assert(determineTrickWinner([p(0, 'C', 'A'), p(1, 'P', '2'), p(2, 'C', '3')], 'C', 'P') === 1, 'briscola bassa deve tagliare');
+    // fra due briscole vince la più alta
+    assert(determineTrickWinner([p(0, 'C', 'A'), p(1, 'P', '2'), p(2, 'P', 'J')], 'C', 'P') === 2, 'briscola più alta deve vincere');
+    // uno scarto fuori seme non vince mai
+    assert(determineTrickWinner([p(0, 'C', '2'), p(1, 'Q', 'A'), p(2, 'F', 'A')], 'C', 'P') === 0, 'lo scarto non deve vincere');
+    return '4 scenari verificati';
+  });
+
+  /* 7 — punteggio */
+  t('Punteggio 10 + 2·prese solo se esatto', () => {
+    assert(scorePlayerHand(0, 0) === 10, 'previsione 0/0 deve valere 10');
+    assert(scorePlayerHand(3, 3) === 16, 'previsione 3/3 deve valere 16');
+    assert(scorePlayerHand(7, 7) === 24, 'previsione 7/7 deve valere 24');
+    assert(scorePlayerHand(2, 3) === 0 && scorePlayerHand(3, 2) === 0, 'previsione errata deve valere 0');
+    return '0→10, 3→16, 7→24, errate→0';
+  });
+
+  /* 8 — rotazione del mazziere */
+  t('Rotazione oraria del mazziere su 14 mani', () => {
+    const seen = [];
+    for (let h = 0; h < 14; h++) seen.push(dealerOfHand(2, h));
+    for (let h = 1; h < 14; h++) assert(seen[h] === nextSeat(seen[h - 1]), 'rotazione non oraria');
+    assert(seen[0] === 2 && seen[5] === 2, 'ciclo di 5 non rispettato');
+    return seen.join('→');
+  });
+
+  /* 9 — chi sceglie la briscola */
+  t('Briscola scelta dalla sinistra del mazziere', () => {
+    for (let d = 0; d < NUM_PLAYERS; d++) assert(trumpChooserOf(d) === (d + 1) % NUM_PLAYERS, 'chooser errato');
+    return 'chooser = mazziere + 1';
+  });
+
+  /* 10 — ordine delle dichiarazioni */
+  t('Ordine dichiarazioni: sinistra del chooser, chooser ultimo', () => {
+    const o = biddingOrder(3);
+    assert(o.length === NUM_PLAYERS && new Set(o).size === NUM_PLAYERS, 'ordine incompleto');
+    assert(o[0] === 4, 'non parte dalla sinistra di chi ha scelto');
+    assert(o[o.length - 1] === 3, 'chi sceglie deve dichiarare per ultimo');
+    return o.join('→');
+  });
+
+  /* 11 — ordine di gioco */
+  t('Ordine di gioco orario dal primo di mano', () => {
+    assert(playOrder(2).join(',') === '2,3,4,0,1', 'ordine di gioco errato');
+    return '2,3,4,0,1';
+  });
+
+  /* 12 — campionamento coerente con i vuoti di seme */
+  t('Monte Carlo: campionamento rispetta i vuoti di seme', () => {
+    const pool = createDeck().filter(c => c.suit !== 'P' || c.rank !== 'A');
+    const voids = emptyVoids();
+    voids[1].C = true; voids[2].Q = true;
+    const needs = [0, 6, 6, 6, 6];
+    for (let i = 0; i < 40; i++) {
+      const hands = sampleDeal(pool, needs, voids);
+      assert(hands[1].every(c => c.suit !== 'C'), 'assegnate Cuori a chi ne è vuoto');
+      assert(hands[2].every(c => c.suit !== 'Q'), 'assegnati Quadri a chi ne è vuoto');
+      hands.forEach((h, i2) => assert(h.length === needs[i2], 'numero di carte errato'));
+    }
+    return '40 campionamenti coerenti';
+  });
+
+  /* 13 — la politica di gioco produce sempre carte legali */
+  t('La politica IA gioca sempre carte legali', () => {
+    const rng = mulberry32(99); setRng(rng);
+    for (let k = 0; k < 200; k++) {
+      const deck = shuffleDeck(createDeck(), rng);
+      const hand = deck.slice(0, 5);
+      const led = SUITS[(rng() * 4) | 0];
+      const plays = [{ player: 1, card: deck[10] }];
+      const c = policyChooseCard(hand, led, 'P', plays, 2, 0, 2, PERSONALITIES.bilanciata);
+      assert(getLegalCards(hand, led).indexOf(c) >= 0, 'carta illegale scelta dalla politica');
+    }
+    setRng(Math.random);
+    return '200 situazioni casuali';
+  });
+
+  /* 14 — partita completa simulata */
+  t('Partita completa di 14 mani (motore headless)', () => {
+    const r = simulateFullGame(20260824);
+    assert(r.errors.length === 0, r.errors.slice(0, 3).join(' / '));
+    assert(r.hands === 14, 'mani giocate ≠ 14');
+    return 'punteggi finali: ' + r.players.map(p => p.name + ' ' + p.score).join(', ');
+  });
+
+  const failed = res.filter(r => r.esito === 'FALLITO');
+  if (typeof console !== 'undefined') {
+    if (console.table) console.table(res); else console.log(res);
+    console.log(failed.length ? '❌ ' + failed.length + ' test falliti' : '✅ Tutti i ' + res.length + ' test superati');
+  }
+  return { risultati: res, falliti: failed.length, totale: res.length };
+}
+
+/**
+ * Gioca una partita intera senza interfaccia, usando la politica euristica
+ * per tutti e 5 i giocatori. Serve ai test (legalità, conteggi, punteggi)
+ * e per confrontare rapidamente le personalità.
+ */
+function simulateFullGame(seed) {
+  const rng = mulberry32(seed || 1);
+  const prev = RNG; setRng(rng);
+  const keys = ['prudente', 'aggressiva', 'bilanciata', 'opportunista', 'bilanciata'];
+  const players = [0, 1, 2, 3, 4].map(i => ({
+    name: 'P' + i, pers: PERSONALITIES[keys[i]], hand: [], bid: 0, tricks: 0, score: 0, exact: 0
+  }));
+  const errors = [];
+  const startDealer = 0;
+  let handsPlayed = 0;
+
+  for (let h = 0; h < HAND_SIZES.length; h++) {
+    const cph = HAND_SIZES[h];
+    const dealer = dealerOfHand(startDealer, h);
+    const chooser = trumpChooserOf(dealer);
+    const deck = shuffleDeck(createDeck(), rng);
+    const dealt = dealCards(deck, NUM_PLAYERS, cph);
+    players.forEach((p, i) => { p.hand = dealt.hands[i].slice(); p.tricks = 0; p.bid = null; });
+    if (players.some(p => p.hand.length !== cph)) errors.push('distribuzione errata (mano ' + (h + 1) + ')');
+
+    // briscola: miglior seme secondo la valutazione euristica di chi sceglie
+    let trump = SUITS[0], bestV = -Infinity;
+    for (const s of SUITS) {
+      const v = handStrengthEstimate(players[chooser].hand, s);
+      if (v > bestV) { bestV = v; trump = s; }
+    }
+    for (const i of biddingOrder(chooser)) players[i].bid = quickBidHeuristic(players[i].hand, trump, cph);
+
+    let leader = chooser;
+    for (let t = 0; t < cph; t++) {
+      const plays = []; let led = null;
+      for (let k = 0; k < NUM_PLAYERS; k++) {
+        const pi = (leader + k) % NUM_PLAYERS;
+        const p = players[pi];
+        const legal = getLegalCards(p.hand, led);
+        const c = policyChooseCard(p.hand, led, trump, plays, p.bid, p.tricks, NUM_PLAYERS - 1 - k, p.pers);
+        if (legal.indexOf(c) < 0) errors.push('giocata illegale (mano ' + (h + 1) + ', presa ' + (t + 1) + ')');
+        p.hand.splice(p.hand.indexOf(c), 1);
+        if (k === 0) led = c.suit;
+        plays.push({ player: pi, card: c });
+      }
+      const w = determineTrickWinner(plays, led, trump);
+      players[w].tricks++;
+      leader = w;
+    }
+    if (players.reduce((a, p) => a + p.tricks, 0) !== cph) errors.push('somma prese ≠ carte (mano ' + (h + 1) + ')');
+    if (players.some(p => p.hand.length)) errors.push('carte non giocate (mano ' + (h + 1) + ')');
+    players.forEach(p => {
+      const pts = scorePlayerHand(p.bid, p.tricks);
+      p.score += pts;
+      if (p.bid === p.tricks) p.exact++;
+    });
+    handsPlayed++;
+  }
+  setRng(prev);
+  return {
+    hands: handsPlayed, errors,
+    players: players.map(p => ({ name: p.name, stile: p.pers.label, score: p.score, esatte: p.exact }))
+  };
+}
+
+/* ================================= AVVIO ================================ */
+
+function boot() {
+  $('#btnRules').onclick = () => $('#rulesBox').classList.toggle('hidden');
+
+  /* Installazione come app (PWA): il browser segnala quando è possibile,
+     il pulsante compare solo in quel caso. Su iPhone si usa "Aggiungi a Home". */
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installPrompt = e;
+    $('#btnInstall').classList.remove('hidden');
+  });
+  $('#btnInstall').onclick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    $('#btnInstall').classList.add('hidden');
+  };
+  window.addEventListener('appinstalled', () => $('#btnInstall').classList.add('hidden'));
+
+  // Le voci del menu "mazziere" seguono i nomi digitati
+  const nameInputs = ['#inName', '#inC1', '#inC2', '#inC3', '#inC4'];
+  const syncDealerNames = () => {
+    const opts = $('#inDealer').options;
+    nameInputs.forEach((sel, i) => {
+      const v = ($(sel).value || '').trim();
+      opts[i + 1].textContent = v || ('Giocatore ' + (i + 1));
+    });
+  };
+  nameInputs.forEach(sel => { $(sel).oninput = syncDealerNames; });
+  syncDealerNames();
+
+  $('#btnStart').onclick = () => {
+    const names = [
+      ($('#inName').value || 'Tu').trim(),
+      ($('#inC1').value || 'CPU 1').trim(),
+      ($('#inC2').value || 'CPU 2').trim(),
+      ($('#inC3').value || 'CPU 3').trim(),
+      ($('#inC4').value || 'CPU 4').trim()
+    ];
+    // Mazziere della prima mano: scelto o estratto a sorte
+    const dealerChoice = $('#inDealer').value;
+    G.startDealer = dealerChoice === 'random'
+      ? Math.floor(RNG() * NUM_PLAYERS)
+      : parseInt(dealerChoice, 10);
+    G.bluff = $('#inBluff').value === '1';
+    G.difficulty = $('#inDiff').value;
+    $('#selDiff').value = G.difficulty;
+    G.speed = parseInt($('#selSpeed').value, 10);
+    G.auto = $('#chkAuto').checked;
+    G.debug = $('#chkDebug').checked;
+    $('#ovStart').classList.add('hidden');
+    newGame(names);
+  };
+
+  // Sul telefono i controlli stanno in un pannellino richiudibile
+  $('#btnDbgPanel').onclick = lbOpenPanel;
+  $('#btnCfg').onclick = () => {
+    const h = $('#top');
+    h.classList.toggle('open');
+    $('#btnCfg').setAttribute('aria-expanded', h.classList.contains('open') ? 'true' : 'false');
+  };
+
+  $('#selDiff').onchange = e => { G.difficulty = e.target.value; };
+  $('#selSpeed').onchange = e => { G.speed = parseInt(e.target.value, 10); };
+  $('#chkAuto').onchange = e => { G.auto = e.target.checked; };
+  $('#chkDebug').onchange = e => { G.debug = e.target.checked; render(); };
+
+  $('#btnNewGame').onclick = () => {
+    GEN++;
+    abortPending();
+    $('#ovEnd').classList.add('hidden');
+    $('#ovStart').classList.remove('hidden');
+  };
+
+  // API da console: CLAG.runRulesTests(), CLAG.simulateFullGame(seed), CLAG.G …
+  window.CLAG = {
+    G, runRulesTests, simulateFullGame,
+    createDeck, shuffleDeck, dealCards, getCardStrength, compareCards,
+    determineTrickWinner, getLegalCards, chooseTrumpAI, estimateBidAI, chooseCardAI,
+    simulateHandMonteCarlo, policyChooseCard, handStrengthEstimate, scoreHand, scorePlayerHand,
+    newGame, render, setRng, mulberry32,
+    setDebug(v) { G.debug = !!v; $('#chkDebug').checked = !!v; render(); }
+  };
+  if (typeof console !== 'undefined') {
+    console.log('%cCLAG', 'color:#e9c46a;font-weight:bold', '— console: CLAG.runRulesTests() · CLAG.setDebug(true) · CLAG.simulateFullGame(1)');
+  }
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+</script>
+<script>
+/* registrazione del service worker: serve solo alla versione installabile */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* pazienza */ });
+  });
+}
+</script>
+</body>
+</html>

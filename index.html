@@ -32,7 +32,10 @@
   --fui:"Archivo","Segoe UI",Roboto,system-ui,-apple-system,Arial,sans-serif;
   --fdisp:"Bitter",Georgia,"Times New Roman",serif;
 }
-html,body{margin:0;padding:0;height:100%}
+/* `overscroll-behavior-y: contain` toglie il "tira giù per ricaricare" del
+   telefono: trascinando dall'alto la pagina non si ricarica più e la partita
+   in corso non si perde. Lo scorrimento interno resta normale. */
+html,body{margin:0;padding:0;height:100%;overscroll-behavior-y:contain}
 body{background:var(--bg);color:var(--txt);font-family:var(--fui);font-size:16px;line-height:1.45}
 button{font-family:inherit;font-size:14px;cursor:pointer}
 h1,h2,h3{margin:0 0 6px}
@@ -440,7 +443,7 @@ table.final tr.me td{color:var(--gold);font-weight:700}
       <label>Difficoltà
         <select id="selDiff">
           <option value="esperto">Esperto</option>
-          <option value="normale">Normale</option>
+          <option value="amichevole">Amichevole</option>
         </select>
       </label>
       <label>Ritmo
@@ -510,8 +513,8 @@ table.final tr.me td{color:var(--gold);font-weight:700}
     <div class="grid">
       <div><label>Il tuo nome</label><input type="text" id="inName" value="Tu" maxlength="12"></div>
       <div><label>Difficoltà IA</label><select id="inDiff">
-          <option value="esperto">Esperto — CPU al massimo</option>
-          <option value="normale">Normale — qualche errore</option>
+          <option value="esperto">Esperto — calcolano al massimo</option>
+          <option value="amichevole">Amichevole — più umane, più fallibili</option>
         </select></div>
       <div><label>CPU 1 (prudente)</label><input type="text" id="inC1" value="Ada" maxlength="12"></div>
       <div><label>CPU 2 (aggressiva)</label><input type="text" id="inC2" value="Bruno" maxlength="12"></div>
@@ -526,13 +529,6 @@ table.final tr.me td{color:var(--gold);font-weight:700}
           <option value="2">Bruno</option>
           <option value="3">Cleo</option>
           <option value="4">Dario</option>
-        </select>
-      </div>
-      <div>
-        <label>Stile delle CPU</label>
-        <select id="inBluff">
-          <option value="1" selected>Possono bluffare</option>
-          <option value="0">Sempre sincere</option>
         </select>
       </div>
     </div>
@@ -896,9 +892,18 @@ function dbg(line) {
    Per aumentare la profondità dell'IA basta alzare questi numeri: sono i
    "budget" di simulazioni. Valori più alti = gioco più forte ma più lento.   */
 const DIFF = {
-  esperto:     { bidBase: 3200, trumpBase: 1400, cardBase: 3000, noise: 0.00, budget: 900, minSims: 60 },
-  normale:     { bidBase: 380,  trumpBase: 150,  cardBase: 320,  noise: 0.22, budget: 220, minSims: 16 }
+  /* Esperto: calcolo pieno, i tratti umani nelle dosi scritte nei caratteri. */
+  esperto:    { bidBase: 3200, trumpBase: 1400, cardBase: 3000, noise: 0.00,
+                budget: 900, minSims: 60, umano: 1.0, pancia: 0.00 },
+  /* Amichevole: ragiona quasi come l'esperto, ma è più umano — si distrae di
+     più, reagisce di più alla mano precedente, e ogni tanto dichiara di
+     pancia. È più debole in un modo riconoscibile, non a caso: prima questo
+     livello si limitava a calcolare poco e a scegliere la seconda carta
+     migliore, che non somiglia a nessun errore vero. */
+  amichevole: { bidBase: 2200, trumpBase: 1000, cardBase: 2000, noise: 0.00,
+                budget: 700, minSims: 40, umano: 2.6, pancia: 0.22 }
 };
+DIFF.normale = DIFF.amichevole;   // vecchio nome, per le partite già salvate
 const cfg = () => DIFF[G.difficulty] || DIFF.esperto;
 
 /** Il depistaggio si può spegnere dalla schermata iniziale. */
@@ -1342,7 +1347,8 @@ function tiltWeight(me, bid, cph) {
   const ultima = st[st.length - 1];
   if (!ultima || ultima.exact) return 1;                 // centrata: nessuna scossa
   const alto = (bid / Math.max(1, cph)) - 0.35;
-  return clamp(1 + pers.tilt * 0.30 * alto, 0.8, 1.25);
+  const quantoUmano = cfg().umano || 1;      // al livello amichevole la scossa è più forte
+  return clamp(1 + pers.tilt * 0.30 * quantoUmano * alto, 0.72, 1.35);
 }
 
 /**
@@ -1356,7 +1362,7 @@ function estimateBidAI(me, trump, knownBids, ctx, simsOverride, fast) {
 
   /* Normale: di solito ragiona, ogni tanto dichiara di pancia. È il gradino
      intermedio: sbaglia soprattutto le previsioni, non le giocate. */
-  if (G.difficulty === 'normale' && !fast && RNG() < 0.32) {
+  if (!fast && (cfg().pancia || 0) > 0 && RNG() < cfg().pancia) {
     return { bid: quickBidHeuristic(ctx.myHand, trump, cph), ev: 0, p: 0 };
   }
   const quick = quickBidHeuristic(ctx.myHand, trump, cph);
@@ -1430,6 +1436,7 @@ function estimateBidAI(me, trump, knownBids, ctx, simsOverride, fast) {
       .sort((a, b) => b.ev - a.ev)[0];
     if (alt) {
       alt.bluffFrom = best.bid;
+      CONTATORI.depista[me]++;
       return alt;
     }
   }
@@ -1503,7 +1510,11 @@ function unseenPool(myHand, playedCards) {
    ha rovinato la mano. Valgono per la partita in corso e si azzerano alla
    prima mano di quella dopo.
    ====================================================================== */
-const CONTATORI = { sacrificio: 0, guasto: 0, carte: 0 };
+const CONTATORI = {
+  carte: 0,
+  sacrificio: [0,0,0,0,0], guasto: [0,0,0,0,0],
+  distratto: [0,0,0,0,0], depista: [0,0,0,0,0], briscolata: [0,0,0,0,0]
+};
 const MEMORIA = {
   mani:   [0, 0, 0, 0, 0],   // mani giocate da ciascuno (in questa partita)
   esatte: [0, 0, 0, 0, 0],   // quante ne ha centrate
@@ -1623,7 +1634,7 @@ function chooseCardAI(me, ctx) {
   const finale = G.handIndex >= HAND_SIZES.length - 3;
   const sacrificio = !bruciata && finale && G.disturbo !== false && partitaPersa(me);
   const disturbo = guasta || sacrificio;
-  CONTATORI.carte++; if (sacrificio) CONTATORI.sacrificio++; else if (guasta) CONTATORI.guasto++;
+  CONTATORI.carte++; if (sacrificio) CONTATORI.sacrificio[me]++; else if (guasta) CONTATORI.guasto[me]++;
 
   /* Pesi delle vittime: a parità di punti in gioco si colpisce più volentieri
      chi è in testa, e chi in questa partita ti ha già rovinato una mano. */
@@ -1683,7 +1694,7 @@ function chooseCardAI(me, ctx) {
      stesso modo si legge a occhio. Fra le carte che rendono praticamente
      uguale, ogni tanto ne prende un'altra: non perde niente e smette di
      essere prevedibile. */
-  if (!disturbo && ctx.plays.length === 0 && near.length > 1 && RNG() < (pers.varia || 0)) {
+  if (!disturbo && ctx.plays.length === 0 && near.length > 1 && RNG() < Math.min(0.7, (pers.varia || 0) * (cfg().umano ? (1 + (cfg().umano - 1) * 0.4) : 1))) {
     const alt = near.filter(s => s !== pick);
     if (alt.length) { pick = alt[Math.floor(RNG() * alt.length)]; umana = ' · apre diverso'; }
   }
@@ -1694,7 +1705,7 @@ function chooseCardAI(me, ctx) {
     const conBriscola = near.filter(s => s.card.suit === ctx.trump);
     if (conBriscola.length) {
       pick = conBriscola.reduce((a, b) => b.card.strength > a.card.strength ? b : a);
-      umana = ' · tira la briscola';
+      umana = ' · tira la briscola'; CONTATORI.briscolata[me]++;
     }
   }
 
@@ -1704,12 +1715,13 @@ function chooseCardAI(me, ctx) {
      registri delle partite vere, ed è il gesto che separa una persona da un
      motore; il calcolatore puro (`guarda`) non lo fa mai. */
   const alNumero = ctx.bids[me] != null && ctx.tricks[me] >= ctx.bids[me];
-  if (alNumero && (pers.slip || 0) > 0 && RNG() < pers.slip) {
+  const quantoUmano = cfg().umano || 1;
+  if (alNumero && (pers.slip || 0) > 0 && RNG() < Math.min(0.30, pers.slip * quantoUmano)) {
     const svista = policyChooseCard(hand, ctx.ledSuit, ctx.trump, ctx.plays,
                                     ctx.tricks[me] + 1, ctx.tricks[me],
                                     NUM_PLAYERS - 1 - ctx.plays.length, pers);
     const riga = scores.find(s => s.card === svista);
-    if (riga && riga !== pick) { pick = riga; umana = ' · distratto'; }
+    if (riga && riga !== pick) { pick = riga; umana = ' · distratto'; CONTATORI.distratto[me]++; }
   }
 
   // In modalità Normale l'IA lascia un margine di imprecisione volutamente umano
@@ -2498,12 +2510,25 @@ function showEndScreen() {
   const pos = rank.indexOf(me) + 1;
   html += '<p style="margin-top:12px;color:#e8eef3">Hai chiuso <b>' + pos + '°</b> con <b>' + me.score +
           '</b> punti e ' + exact(me) + ' previsioni esatte su 14.</p>' +
-          '<button class="btn primary" id="btnAgain">Gioca ancora</button>';
+          '<div class="dbtns"><button class="btn primary" id="btnAgain">Gioca ancora</button>' +
+          '<button class="btn" id="btnAnalizza">Analizza la partita</button></div>';
   lbEndGame({ classifica: rank.map(p => ({ nome: p.name, punti: p.score, esatte: exact(p) })),
               posizione_umano: pos });
   $('#endBox').innerHTML = html;
   $('#ovEnd').classList.remove('hidden');
   $('#btnAgain').onclick = () => { $('#ovEnd').classList.add('hidden'); $('#ovStart').classList.remove('hidden'); };
+  /* Analisi subito, senza dover cominciare un'altra partita per arrivare alla
+     scheda: si apre il Debug già sulla linguetta giusta e sulla partita appena
+     finita, e il calcolo parte da solo. */
+  const bAn = $('#btnAnalizza');
+  if (bAn) bAn.onclick = () => {
+    $('#ovEnd').classList.add('hidden');
+    if (typeof lbOpenPanel === 'function') {
+      if (typeof LB_TAB !== 'undefined') LB_TAB = 'analisi';
+      lbOpenPanel();
+      if (typeof anAvviaUltima === 'function') anAvviaUltima();
+    }
+  };
 }
 /* ==========================================================================
    CLAG — scheda Debug: registro delle partite
@@ -2894,6 +2919,18 @@ function anTabella(r) {
   h += centrate ? '\n' + centrate + ' mani centrate, niente da dire.' : '';
   h += '</div>';
   return h;
+}
+
+/** Avvia l'analisi della partita più recente (usata dal tasto di fine partita). */
+function anAvviaUltima() {
+  const partite = anPartiteDisponibili();
+  if (!partite.length) return;
+  AN_INCORSO = true; AN_ULTIMA = null; lbRenderPanel();
+  setTimeout(() => {
+    try { AN_ULTIMA = analizzaPartita(partite[0]); }
+    catch (err) { AN_ULTIMA = null; }
+    AN_INCORSO = false; lbRenderPanel();
+  }, 40);
 }
 
 function anCollegaScheda() {
@@ -3425,7 +3462,7 @@ function boot() {
     G.startDealer = dealerChoice === 'random'
       ? Math.floor(RNG() * NUM_PLAYERS)
       : parseInt(dealerChoice, 10);
-    G.bluff = $('#inBluff').value === '1';
+    G.bluff = true;            // il depistaggio è un tratto dei caratteri, non un'opzione
     G.difficulty = $('#inDiff').value;
     $('#selDiff').value = G.difficulty;
     G.speed = parseInt($('#selSpeed').value, 10);

@@ -2,7 +2,7 @@
    Tiene una copia locale del gioco così parte anche senza rete. Quando
    cambia il gioco si cambia CACHE_VERSION: il vecchio contenuto viene
    eliminato al primo avvio utile e il telefono ricarica il file nuovo. */
-const CACHE_VERSION = 'clag-v10';
+const CACHE_VERSION = 'clag-v13';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png'

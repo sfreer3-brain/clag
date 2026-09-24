@@ -1142,6 +1142,33 @@ function readBias(bids, tricks, needs, me) {
   return bias;
 }
 
+/**
+ * Carte indistinguibili. Due carte dello stesso seme sono la stessa cosa se
+ * fra loro non è rimasta nessuna carta che ancora non si è vista: J e 7 di
+ * quadri, con l'8 il 9 e il 10 che non esistono nel mazzo da 40, battono le
+ * stesse carte e perdono contro le stesse. Valutarle separatamente è tempo
+ * sprecato, e con poche simulazioni produce differenze che sono solo rumore.
+ * Restituisce una carta per gruppo — la più bassa, che è quella da giocare —
+ * e la mappa da ogni carta al suo rappresentante.
+ */
+function cartePari(legal, pool) {
+  const perSeme = {};
+  for (const c of legal) (perSeme[c.suit] || (perSeme[c.suit] = [])).push(c);
+  const rappr = [], mappa = new Map();
+  for (const suit of Object.keys(perSeme)) {
+    const mie = perSeme[suit].slice().sort((a, b) => a.strength - b.strength);
+    const coperte = pool.filter(c => c.suit === suit).map(c => c.strength);
+    let gruppo = [mie[0]];
+    for (let i = 1; i < mie.length; i++) {
+      const inMezzo = coperte.some(v => v > gruppo[gruppo.length - 1].strength && v < mie[i].strength);
+      if (inMezzo) { rappr.push(gruppo[0]); gruppo.forEach(c => mappa.set(c.id, gruppo[0])); gruppo = [mie[i]]; }
+      else gruppo.push(mie[i]);
+    }
+    rappr.push(gruppo[0]); gruppo.forEach(c => mappa.set(c.id, gruppo[0]));
+  }
+  return { rappr, mappa };
+}
+
 /** Quanto una carta è "da dichiarazione alta": briscole e figure in testa. */
 function cardAppeal(c, trump) {
   const base = (c.strength - 5.5) / 4.5;               // A=+1 … 2=−1
@@ -1650,8 +1677,17 @@ function chooseCardAI(me, ctx) {
   const forza = (pers && pers.lettura) || 0;
   const bias = forza ? readBias(ctx.bids, ctx.tricks, ctx.needs, me) : null;
 
-  for (const c of legal) {
+  /* Un solo esame per gruppo di carte indistinguibili, e tutti i candidati
+     provati sulle STESSE distribuzioni: così il confronto fra due carte non
+     dipende dalla fortuna del sorteggio. */
+  const pari = cartePari(legal, ctx.pool);
+  const semeUguale = pari.rappr.length < legal.length;
+  const candidati = pari.rappr;
+  const seme0 = Math.floor(RNG() * 1e9);
+
+  for (const c of candidati) {
     let ok = 0, n = 0;
+    setRng(mulberry32(seme0));
     for (let s = 0; s < simsPerCard; s++) {
       const hands = sampleDeal(ctx.pool, ctx.needs, ctx.voids, bias, ctx.trump, forza);
       hands[me] = hand.filter(x => x !== c);
@@ -1678,6 +1714,17 @@ function chooseCardAI(me, ctx) {
       if (((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0) > budget) break;
     }
     scores.push({ card: c, p: n ? ok / n : 0, n });
+  }
+  if (semeUguale) {
+    /* si rimettono in elenco anche le gemelle, con lo stesso punteggio del
+       rappresentante: servono al resto della scelta (euristica, varietà…) */
+    const perId = new Map(scores.map(x => [x.card.id, x]));
+    for (const c of legal) {
+      if (perId.has(c.id)) continue;
+      const r = pari.mappa.get(c.id);
+      const base = r && perId.get(r.id);
+      if (base) scores.push({ card: c, p: base.p, n: base.n, gemella: true });
+    }
   }
 
   scores.sort((a, b) => b.p - a.p);
@@ -3039,8 +3086,14 @@ function anGiocate(h, io, cph, trump, bids) {
           const needs = [0, 1, 2, 3, 4].map(i => i === io ? 0 :
             Math.max(0, cph - ti - (plays.some(p => p.player === i) ? 1 : 0)));
           const pool = unseenPool(mano, giocate.concat(plays.map(p => p.card)));
-          const punteggi = legali.map(cand => {
+          /* Una valutazione per gruppo di carte indistinguibili, e tutte sulle
+             stesse distribuzioni: due carte che battono le stesse carte devono
+             risultare uguali, non diverse per via del sorteggio. */
+          const pari = cartePari(legali, pool);
+          const seme0 = Math.floor(RNG() * 1e9);
+          const punteggiBase = pari.rappr.map(cand => {
             let ok = 0;
+            setRng(mulberry32(seme0));
             for (let s = 0; s < AN_SIMS_CARTA; s++) {
               const hs = sampleDeal(pool, needs, voids);
               hs[io] = mano.filter(x => x.id !== cand.id);
@@ -3053,6 +3106,12 @@ function anGiocate(h, io, cph, trump, bids) {
               if (tr[io] === bids[io]) ok++;
             }
             return { c: cand, p: ok / AN_SIMS_CARTA };
+          });
+          const perId = new Map(punteggiBase.map(x => [x.c.id, x]));
+          const punteggi = legali.map(cand => {
+            const r = pari.mappa.get(cand.id);
+            const base = perId.get(r ? r.id : cand.id) || punteggiBase[0];
+            return { c: cand, p: base.p };
           }).sort((a, b) => b.p - a.p);
           const mia = punteggi.find(x => x.c.id === c.id);
           const scarto = punteggi[0].p - (mia ? mia.p : 0);

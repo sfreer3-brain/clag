@@ -233,6 +233,11 @@ aside.side{width:352px;flex-shrink:0;background:var(--panel);border-left:1px sol
 .badge.vuoto{visibility:hidden}
 
 /* ---------- segnapunti ---------- */
+.sfida{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.sfida p{margin:0 0 9px;font-size:13.5px;color:#cfe0d6}
+.sfida .codice{font-family:var(--fdisp);font-size:23px;letter-spacing:3px;color:var(--gold)}
+.sfidanota{font-size:12px;color:var(--dim)}
+.versione{font-size:11.5px;color:var(--dim);letter-spacing:.4px;margin-top:10px;text-align:center}
 .grab{display:none}
 aside h3{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
   margin:16px 0 7px;font-weight:700}
@@ -521,6 +526,11 @@ table.final tr.me td{color:var(--gold);font-weight:700}
       <div><label>CPU 3 (bilanciata)</label><input type="text" id="inC3" value="Cleo" maxlength="12"></div>
       <div><label>CPU 4 (opportunista)</label><input type="text" id="inC4" value="Dario" maxlength="12"></div>
       <div>
+        <label>Codice smazzata (facoltativo)</label>
+        <input type="text" id="inCodice" maxlength="9" placeholder="es. K7M3QPD"
+               style="text-transform:uppercase;letter-spacing:2px">
+      </div>
+      <div>
         <label>Mazziere della prima mano</label>
         <select id="inDealer">
           <option value="random" selected>Casuale</option>
@@ -532,12 +542,14 @@ table.final tr.me td{color:var(--gold);font-weight:700}
         </select>
       </div>
     </div>
-    <p id="dealerNote" style="margin:-4px 0 10px;font-size:12.5px">La briscola la sceglie il giocatore alla sinistra del mazziere, che apre anche la prima presa.</p>
+    <p id="dealerNote" style="margin:-4px 0 10px;font-size:12.5px">La briscola la sceglie il giocatore alla sinistra del mazziere, che apre anche la prima presa.
+Con un <b>codice smazzata</b> ricevi le stesse identiche carte di chi te l'ha passato: il mazziere lo decide il codice.</p>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn primary" id="btnStart">Inizia la partita</button>
       <button class="btn" id="btnRules">Regole</button>
       <button class="btn hidden" id="btnInstall">📲 Installa sul telefono</button>
     </div>
+    <div class="versione" id="versioneNota"></div>
     <div class="rules hidden" id="rulesBox">
       <b>Mazzo</b>: 40 carte (senza 8, 9, 10). Forza: A &gt; 3 &gt; K &gt; Q &gt; J &gt; 7 &gt; 6 &gt; 5 &gt; 4 &gt; 2. I punti della briscola non contano.<br>
       <b>Mani</b>: 14 mani con 1,2,3,4,5,6,7,7,6,5,4,3,2,1 carte. Il mazziere ruota in senso orario.<br>
@@ -564,6 +576,48 @@ table.final tr.me td{color:var(--gold);font-weight:700}
 'use strict';
 
 /* ------------------------------ Costanti ------------------------------ */
+
+/** Versione del gioco: si vede nella schermata iniziale e nel Debug. */
+const CLAG_VERSIONE = 'v15';
+
+/* ------------------------ Codice della smazzata ------------------------
+   Una partita è decisa da un numero: da quel numero un generatore
+   pseudocasuale ricava, sempre allo stesso modo, i quattordici mescolamenti
+   e il mazziere iniziale. Il "codice" non è altro che quel numero scritto in
+   lettere e cifre — quindi le carte non sono salvate da nessuna parte: si
+   ricalcolano. Stesso codice, stesse carte, su qualunque telefono.
+   L'alfabeto salta 0, 1, I e O per non confondersi leggendo.            */
+const COD_ALFABETO = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+/** Numero (seme + mazziere) → codice di 7 caratteri. */
+function codiceDaSeme(seme, mazziere) {
+  let v = (seme % 268435456) * 8 + (mazziere % 8);   // 28 bit + 3 bit
+  let out = '';
+  for (let i = 0; i < 7; i++) { out = COD_ALFABETO[v % 32] + out; v = Math.floor(v / 32); }
+  return out;
+}
+
+/** Codice → { seme, mazziere }, oppure null se il codice non è valido. */
+function semeDaCodice(codice) {
+  const c = String(codice || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
+    .replace(/O/g, '0').replace(/I/g, '1');
+  if (c.length !== 7) return null;
+  let v = 0;
+  for (const ch of c) {
+    const k = COD_ALFABETO.indexOf(ch);
+    if (k < 0) return null;
+    v = v * 32 + k;
+  }
+  return { seme: Math.floor(v / 8), mazziere: v % 8 % NUM_PLAYERS };
+}
+
+/** Un codice nuovo, a caso. */
+function nuovoSeme() { return Math.floor(Math.random() * 268435456); }
+
+/** Il mescolamento della mano n, ricavato dal seme della partita. */
+function rngDellaMano(seme, handIndex) {
+  return mulberry32(((seme + (handIndex + 1) * 0x9E3779B9) >>> 0));
+}
 
 /** I quattro semi. */
 const SUITS = ['C', 'Q', 'F', 'P'];
@@ -2346,6 +2400,9 @@ async function newGame(names) {
   G.debugLines = []; G.phase = 'idle'; G.currentPlayer = -1;
   // Il mazziere della prima mano arriva dalla schermata iniziale (scelto o casuale).
   if (typeof G.startDealer !== 'number') G.startDealer = Math.floor(RNG() * NUM_PLAYERS);
+  /* Seme della partita: o arriva da un codice condiviso, o se ne fa uno nuovo. */
+  if (typeof G.seme !== 'number') G.seme = nuovoSeme();
+  G.codice = codiceDaSeme(G.seme, G.startDealer);
   G.dealer = dealerOfHand(G.startDealer, 0);
   G.chooser = trumpChooserOf(G.dealer);
   $('#ovEnd').classList.add('hidden');
@@ -2377,7 +2434,9 @@ async function playHand(gen) {
   G.players.forEach(p => p.resetHand());
   G.trick = { leader: G.chooser, plays: [], ledSuit: null };
 
-  const deck = shuffleDeck(createDeck());
+  /* Le carte della mano nascono dal seme della partita: stesso codice,
+     stesse carte, su qualunque telefono e a qualunque velocità di calcolo. */
+  const deck = shuffleDeck(createDeck(), rngDellaMano(G.seme, G.handIndex));
   const dealt = dealCards(deck, NUM_PLAYERS, G.cardsPerHand);
   G.players.forEach((p, i) => { p.hand = dealt.hands[i]; });
   lbStartHand({ carte: G.cardsPerHand, mazziere: G.dealer, chooser: G.chooser });
@@ -2558,7 +2617,17 @@ function showEndScreen() {
   html += '<p style="margin-top:12px;color:#e8eef3">Hai chiuso <b>' + pos + '°</b> con <b>' + me.score +
           '</b> punti e ' + exact(me) + ' previsioni esatte su 14.</p>' +
           '<div class="dbtns"><button class="btn primary" id="btnAgain">Gioca ancora</button>' +
-          '<button class="btn" id="btnAnalizza">Analizza la partita</button></div>';
+          '<button class="btn" id="btnAnalizza">Analizza la partita</button></div>' +
+          '<div class="sfida">' +
+            '<p>Hai giocato la smazzata <b class="codice">' + G.codice + '</b><br>' +
+            '<span class="sfidanota">Condividi il codice: chi lo inserisce nella schermata iniziale ' +
+            'riceve le tue stesse carte, mano per mano.</span></p>' +
+            '<div class="dbtns">' +
+              '<button class="btn" id="btnCopiaCod">Copia il codice</button>' +
+              '<button class="btn" id="btnSfida">Sfida gli amici</button>' +
+            '</div>' +
+            '<div id="sfidaNota" class="lbnote"></div>' +
+          '</div>';
   lbEndGame({ classifica: rank.map(p => ({ nome: p.name, punti: p.score, esatte: exact(p) })),
               posizione_umano: pos });
   $('#endBox').innerHTML = html;
@@ -2567,6 +2636,31 @@ function showEndScreen() {
   /* Analisi subito, senza dover cominciare un'altra partita per arrivare alla
      scheda: si apre il Debug già sulla linguetta giusta e sulla partita appena
      finita, e il calcolo parte da solo. */
+  /* Sfida: il messaggio pronto da mandare, con il codice dentro. */
+  const posto = pos + '°';
+  const testoSfida = 'Ho appena giocato a CLAG la smazzata ' + G.codice +
+    ', sono arrivato ' + posto + ' e ho fatto ' + me.score + ' punti. ' +
+    'Prova a battermi: inserisci il codice ' + G.codice + ' nella schermata iniziale. ' +
+    'https://sfreer3-brain.github.io/clag/';
+  const nota = t => { const n = $('#sfidaNota'); if (n) n.textContent = t; };
+  const bCop = $('#btnCopiaCod');
+  if (bCop) bCop.onclick = async () => {
+    try { await navigator.clipboard.writeText(G.codice); nota('Codice copiato: ' + G.codice); }
+    catch (e) { nota('Copialo a mano: ' + G.codice); }
+  };
+  const bSf = $('#btnSfida');
+  if (bSf) bSf.onclick = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ text: testoSfida }); return; } catch (e) { /* annullato */ }
+    }
+    const url = 'https://wa.me/?text=' + encodeURIComponent(testoSfida);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      try { await navigator.clipboard.writeText(testoSfida); nota('Messaggio copiato: incollalo dove vuoi.'); }
+      catch (e) { nota(testoSfida); }
+    }
+  };
+
   const bAn = $('#btnAnalizza');
   if (bAn) bAn.onclick = () => {
     $('#ovEnd').classList.add('hidden');
@@ -2849,12 +2943,20 @@ function lbRenderPanel() {
     '<div class="dtabs">' + tab('storico', 'Storico partite') + tab('analisi', 'Analisi') +
       tab('motore', 'Motore IA') + '</div>' +
     body +
-    '<div class="dbtns" style="margin-top:14px"><button class="btn" id="lbChiudi">Chiudi</button></div>';
+    '<div class="dbtns" style="margin-top:14px"><button class="btn" id="lbChiudi">Chiudi</button>' +
+    '<button class="btn primary" id="lbNuova">Nuova partita</button></div>' +
+    '<div class="versione">CLAG ' + (typeof CLAG_VERSIONE === 'string' ? CLAG_VERSIONE : '') + '</div>';
 
   box.querySelectorAll('.dtab').forEach(b => {
     b.onclick = () => { LB_TAB = b.getAttribute('data-tab'); lbRenderPanel(); };
   });
   $('#lbChiudi').onclick = () => $('#ovDbg').classList.add('hidden');
+  const nuova = $('#lbNuova');
+  if (nuova) nuova.onclick = () => {
+    $('#ovDbg').classList.add('hidden');
+    $('#ovEnd').classList.add('hidden');
+    $('#ovStart').classList.remove('hidden');
+  };
 
   const nota = m => { $('#lbNote').textContent = m; };
   const mostra = testo => { const t = $('#lbText'); t.value = testo; t.classList.remove('hidden'); return t; };
@@ -3516,11 +3618,24 @@ function boot() {
       ($('#inC3').value || 'CPU 3').trim(),
       ($('#inC4').value || 'CPU 4').trim()
     ];
-    // Mazziere della prima mano: scelto o estratto a sorte
+    /* Codice della smazzata: se c'è, decide carte e mazziere; se manca o non
+       è valido, si gioca una partita nuova di zecca. */
+    const codiceIn = ($('#inCodice') ? $('#inCodice').value : '').trim();
+    const dal = codiceIn ? semeDaCodice(codiceIn) : null;
+    if (codiceIn && !dal) {
+      $('#inCodice').value = '';
+      $('#inCodice').setAttribute('placeholder', 'codice non valido — partita nuova');
+    }
     const dealerChoice = $('#inDealer').value;
-    G.startDealer = dealerChoice === 'random'
-      ? Math.floor(RNG() * NUM_PLAYERS)
-      : parseInt(dealerChoice, 10);
+    if (dal) {
+      G.seme = dal.seme;
+      G.startDealer = dal.mazziere;
+    } else {
+      G.seme = nuovoSeme();
+      G.startDealer = dealerChoice === 'random'
+        ? Math.floor(RNG() * NUM_PLAYERS)
+        : parseInt(dealerChoice, 10);
+    }
     G.bluff = true;            // il depistaggio è un tratto dei caratteri, non un'opzione
     G.difficulty = $('#inDiff').value;
     $('#selDiff').value = G.difficulty;
@@ -3597,6 +3712,12 @@ function collegaManiglia() {
   aggiorna();
 }
 
+/** Scrive la versione nella schermata iniziale. */
+function mostraVersione() {
+  const n = document.getElementById('versioneNota');
+  if (n) n.textContent = 'CLAG ' + CLAG_VERSIONE;
+}
+
 function seguiBarra() {
   misuraBarra();
   window.addEventListener('resize', misuraBarra);
@@ -3605,7 +3726,7 @@ function seguiBarra() {
   if (h && typeof ResizeObserver !== 'undefined') new ResizeObserver(misuraBarra).observe(h);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); collegaManiglia(); });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); collegaManiglia(); mostraVersione(); });
 else { boot(); seguiBarra(); collegaManiglia(); }
 </script>
 <script>

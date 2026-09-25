@@ -578,7 +578,7 @@ Con un <b>codice smazzata</b> ricevi le stesse identiche carte di chi te l'ha pa
 /* ------------------------------ Costanti ------------------------------ */
 
 /** Versione del gioco: si vede nella schermata iniziale e nel Debug. */
-const CLAG_VERSIONE = 'v15';
+const CLAG_VERSIONE = 'v17';
 
 /* ------------------------ Codice della smazzata ------------------------
    Una partita è decisa da un numero: da quel numero un generatore
@@ -667,7 +667,10 @@ const PERSONALITIES = {
     trumpLead: 0.00,    // non apre mai di briscola per scelta
     think: 1.15,        // si prende il suo tempo
     guasto: 0.70,       // mano bruciata: decide una volta, e se disturba lo fa fino in fondo
-    lettura: 1.0,       // legge le dichiarazioni del tavolo, con misura
+    lettura: 1.0,
+    rincorsa: 2.25,     // quando è indietro spinge le dichiarazioni verso l'alto
+    rincorsaSoglia: 18, // ma solo con almeno 18 punti di distacco
+    guastoCoda: false,  // non si arrende mai: resta prudente fino in fondo
     varia: 0.15         // quasi sempre apre con la stessa carta
   },
   aggressiva: {
@@ -679,6 +682,9 @@ const PERSONALITIES = {
     trumpLead: 0.30,    // le piace tirare fuori le briscole alte
     think: 0.80,        // decide in fretta, a volte troppo
     guasto: 1.00,       // mano bruciata? allora rovina la mano a qualcun altro, fino in fondo
+    guastoCoda: true,   // e se è ULTIMO nel finale si scazza: dichiara per far danno
+    guastoSoglia: 12,   // basta un distacco di 12 punti perché ci rinunci
+    rincorsa: 1.0, rincorsaSoglia: 999,
     varia: 0.45         // apre in modo imprevedibile
   },
   bilanciata: {
@@ -687,6 +693,7 @@ const PERSONALITIES = {
     bluff: 0.12,
     slip: 0.05, tilt: +0.15, trumpLead: 0.10,
     think: 1.00, guasto: 0.85, varia: 0.30,
+    rincorsa: 2.25, rincorsaSoglia: 18, guastoCoda: false,
     lettura: 3.0        // si fida molto di quello che sente dichiarare al tavolo
   },
   opportunista: {
@@ -696,6 +703,10 @@ const PERSONALITIES = {
     bluff: 0.30,        // depista spesso: è il suo modo di rompere le previsioni altrui
     slip: 0.00, tilt: 0.00, trumpLead: 0.00,
     think: 1.45,        // è quello che ci pensa di più
+    rincorsa: 1.25,     // indietro spinge appena le dichiarazioni
+    rincorsaSoglia: 12, // ma reagisce prima degli altri
+    concentrazione: 1.5,// e soprattutto calcola la metà in più: si mette a pensare
+    guastoCoda: false,
     guasto: 1.00,       // e quando non può più centrare, gioca per far sbagliare gli altri
     varia: 0.20,
     guarda: true        // il calcolatore puro: nessun tratto umano, metro di paragone
@@ -1337,7 +1348,9 @@ function simulateHandMonteCarlo(me, trump, myBid, sims, knownBids, ctx) {
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   /* Ogni carattere ha il suo tempo di riflessione: chi è impulsivo decide
      prima e calcola meno, il calcolatore si prende quasi il doppio. */
-  const budget = cfg().budget * ((persArr[me] && persArr[me].think) || 1);
+  const concS = (persArr[me] && persArr[me].concentrazione && quantoIndietro(me) > ((persArr[me].rincorsaSoglia) || 12))
+    ? persArr[me].concentrazione : 1;
+  const budget = cfg().budget * ((persArr[me] && persArr[me].think) || 1) * concS;
   let done = 0;
   /* Lettura del tavolo: chi ce l'ha non distribuisce più le carte coperte a
      caso, ma tenendo conto di quello che gli altri hanno dichiarato. */
@@ -1362,6 +1375,54 @@ function simulateHandMonteCarlo(me, trump, myBid, sims, knownBids, ctx) {
   }
   dist.total = done || 1;
   return dist;
+}
+
+/**
+ * Quanto danno fa una certa dichiarazione agli avversari.
+ * Serve al giocatore che ha la partita persa e smette di giocare per sé:
+ * dichiarare molto meno di quello che si ha in mano è il modo più sicuro di
+ * far sballare gli altri, perché le prese arrivano comunque e arrivano a chi
+ * ne aveva bisogno. Nelle simulazioni il giocatore si brucia subito e da quel
+ * momento gioca per il disturbo, quindi il conto tiene già dentro il seguito.
+ * Restituisce la quota di avversari mandati fuori previsione, pesata dai
+ * punti che ci rimettono e da quanto vale colpire proprio quelli.
+ */
+const MIRA_CAPO = 8;      // quanto il guastatore punta al capoclassifica invece che a tutti
+const GUASTO_SOGLIA = 25; // distacco dal primo oltre il quale si smette di giocare per sé
+const GUASTO_MANI = 4;    // e quante mani devono restare perché la cosa valga
+const GUASTO_SOLO_CODA = true;  // e si arrendono solo gli ultimi due della classifica
+
+function stimaDannoDichiarazione(me, trump, myBid, sims, knownBids, ctx) {
+  const needs = new Array(NUM_PLAYERS).fill(0);
+  for (let i = 0; i < NUM_PLAYERS; i++) needs[i] = (i === me) ? 0 : ctx.needs[i];
+  const capo = capoclassifica();
+  let danno = 0, n = 0;
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const budget = cfg().budget * ((ctx.persArr[me] && ctx.persArr[me].think) || 1) * 0.5;
+  for (let s = 0; s < sims; s++) {
+    const hands = sampleDeal(ctx.pool, needs, ctx.voids);
+    hands[me] = ctx.myHand.slice();
+    const bids = new Array(NUM_PLAYERS);
+    for (let i = 0; i < NUM_PLAYERS; i++) {
+      if (i === me) bids[i] = myBid;
+      else if (knownBids[i] != null) bids[i] = knownBids[i];
+      else bids[i] = modelOpponentBid(hands[i], trump, ctx.cardsPerHand);
+    }
+    const tricks = ctx.tricks.slice();
+    playout(hands, bids, tricks, trump,
+            { leader: ctx.leader, plays: ctx.plays || [], ledSuit: ctx.ledSuit || null }, ctx.persArr);
+    let d = 0, massimo = 0;
+    for (let i = 0; i < NUM_PLAYERS; i++) {
+      if (i === me) continue;
+      const valore = (10 + 2 * bids[i]) * pesoDellaVittima(me, i, capo, MIRA_CAPO);
+      massimo += valore;
+      if (tricks[i] !== bids[i]) d += valore;
+    }
+    danno += massimo ? d / massimo : 0;
+    n++;
+    if (((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0) > budget) break;
+  }
+  return n ? danno / n : 0;
 }
 
 /** Peso di personalità applicato al valore atteso di una dichiarazione. */
@@ -1439,10 +1500,34 @@ function tiltWeight(me, bid, cph) {
 function estimateBidAI(me, trump, knownBids, ctx, simsOverride, fast) {
   const cph = ctx.cardsPerHand;
   const pers = ctx.persArr[me];
-  const sims = simsOverride || clamp(Math.round(cfg().bidBase / cph), cfg().minSims, 600);
+  let sims = simsOverride || clamp(Math.round(cfg().bidBase / cph), cfg().minSims, 600);
+  /* Chi si concentra quando è indietro calcola di più, e ci mette di più. */
+  const conc = (!simsOverride && pers && pers.concentrazione && quantoIndietro(me) > (pers.rincorsaSoglia || 12))
+    ? pers.concentrazione : 1;
+  if (conc !== 1) { sims = Math.round(sims * conc); CONTATORI.concentrato[me] = (CONTATORI.concentrato[me] || 0) + 1; }
 
   /* Normale: di solito ragiona, ogni tanto dichiara di pancia. È il gradino
      intermedio: sbaglia soprattutto le previsioni, non le giocate. */
+  /* Dichiarazione da guastatore: partita persa e finale di partita. Non si
+     cerca più il numero che rende, ma quello che fa più danno — di solito
+     zero con una mano forte, perché le prese arriveranno comunque e le
+     toglieranno a chi ne ha bisogno. */
+  /* Il guastatore non è più una regola del gioco ma un tratto: ce l'ha solo
+     chi si scazza quando è ultimo (Bruno). Gli altri, indietro, reagiscono a
+     modo loro — spingendo le dichiarazioni o concentrandosi di più. */
+  const persMe = G.players && G.players[me] ? G.players[me].pers : null;
+  const perso = !!(persMe && persMe.guastoCoda && sonoUltimo(me) &&
+                   quantoIndietro(me) > (persMe.guastoSoglia || 12));
+  if (!fast && G.disturbo !== false && G.guastaDich !== false && perso) {
+    let mb = 0, mD = -1;
+    for (let b = 0; b <= cph; b++) {
+      const d = stimaDannoDichiarazione(me, trump, b, Math.max(40, Math.round(sims * 0.5)), knownBids, ctx);
+      if (d > mD) { mD = d; mb = b; }
+    }
+    CONTATORI.dichGuasta[me] = (CONTATORI.dichGuasta[me] || 0) + 1;
+    return { bid: mb, ev: 0, p: 0, guastatore: true };
+  }
+
   if (!fast && (cfg().pancia || 0) > 0 && RNG() < cfg().pancia) {
     return { bid: quickBidHeuristic(ctx.myHand, trump, cph), ev: 0, p: 0 };
   }
@@ -1467,7 +1552,15 @@ function estimateBidAI(me, trump, knownBids, ctx, simsOverride, fast) {
     let ev = raw * persBidWeight(pers, b, cph, knownBids);
     /* La valutazione interna della briscola (`fast`) resta pura: lì si giudica
        la mano, non la partita. */
-    if (!fast) ev *= gameContextWeight(me, b, cph) * tiltWeight(me, b, cph);
+    if (!fast) {
+      let w = gameContextWeight(me, b, cph);
+      const amp = forzaRincorsa(me);
+      if (amp !== 1) {
+        w = 1 + amp * (w - 1);                // stessa spinta, moltiplicata dal carattere
+        if (b === 0) CONTATORI.rincorsa[me] = (CONTATORI.rincorsa[me] || 0) + 1;
+      }
+      ev *= w * tiltWeight(me, b, cph);
+    }
     const row = { bid: b, ev, p };
     all.push(row);
     if (!best || ev > best.ev) best = row;
@@ -1594,7 +1687,8 @@ function unseenPool(myHand, playedCards) {
 const CONTATORI = {
   carte: 0,
   sacrificio: [0,0,0,0,0], guasto: [0,0,0,0,0],
-  distratto: [0,0,0,0,0], depista: [0,0,0,0,0], briscolata: [0,0,0,0,0]
+  distratto: [0,0,0,0,0], depista: [0,0,0,0,0], briscolata: [0,0,0,0,0],
+  dichGuasta: [0,0,0,0,0], concentrato: [0,0,0,0,0], rincorsa: [0,0,0,0,0]
 };
 const MEMORIA = {
   mani:   [0, 0, 0, 0, 0],   // mani giocate da ciascuno (in questa partita)
@@ -1641,6 +1735,19 @@ function creditoDi(i) {
   return clamp(0.45 + (rate - 0.5) * 1.7, 0.40, 1.30);
 }
 
+/**
+ * Quanto vale colpire proprio quel giocatore: chi è in testa pesa di più, e
+ * chi in questa partita ti ha già rovinato una mano pure.
+ */
+function pesoDellaVittima(me, i, capo, mira) {
+  let w = 1;
+  /* `mira` è quanto il guastatore prende di petto chi è in testa: 1,6 quando
+     disturba giocando, molto di più quando dichiara apposta per fargli male. */
+  if (i === (capo == null ? capoclassifica() : capo)) w *= (mira || 1.6);
+  w *= 1 + 0.35 * Math.min(2, MEMORIA.rancore[me][i]);
+  return w;
+}
+
 /** Chi è in testa (indice), fra quelli che hanno un punteggio. */
 function capoclassifica() {
   const pl = G.players;
@@ -1648,6 +1755,64 @@ function capoclassifica() {
   let bi = 0;
   for (let i = 1; i < pl.length; i++) if ((pl[i].score || 0) > (pl[bi].score || 0)) bi = i;
   return (pl[bi].score || 0) > 0 ? bi : -1;
+}
+
+/**
+ * "Sono indietro e la partita sta finendo": la stessa situazione per tutti,
+ * ma ognuno la vive a modo suo — chi si scazza, chi accelera, chi si
+ * concentra. Restituisce il distacco dal primo, o 0 se non è il caso.
+ */
+function quantoIndietro(me) {
+  const pl = G.players;
+  if (!pl || !pl.length || typeof G.handIndex !== 'number') return 0;
+  if (HAND_SIZES.length - G.handIndex > GUASTO_MANI) return 0;
+  const capo = capoclassifica();
+  if (capo < 0 || capo === me) return 0;
+  return Math.max(0, (pl[capo].score || 0) - (pl[me].score || 0));
+}
+
+/** Sono ULTIMO in classifica? */
+function sonoUltimo(me) {
+  const pl = G.players;
+  if (!pl || !pl.length) return false;
+  for (let i = 0; i < pl.length; i++)
+    if (i !== me && (pl[i].score || 0) < (pl[me].score || 0)) return false;
+  return true;
+}
+
+/** Il moltiplicatore di rincorsa attivo adesso per questo giocatore. */
+function forzaRincorsa(me) {
+  const pers = G.players && G.players[me] ? G.players[me].pers : null;
+  if (!pers || !pers.rincorsa || pers.rincorsa === 1) return 1;
+  const gap = quantoIndietro(me);
+  if (gap <= (pers.rincorsaSoglia || 18)) return 1;
+  return pers.rincorsa;
+}
+
+/**
+ * Partita praticamente persa: il distacco dal primo è tale che rimontarlo, con
+ * le mani che restano, è poco più di una speranza. La soglia è in punti e la
+ * finestra in numero di mani: entrambe si possono cambiare qui sopra.
+ */
+function partitaCompromessa(me) {
+  const pl = G.players;
+  if (!pl || !pl.length) return false;
+  const restano = HAND_SIZES.length - G.handIndex;
+  if (restano > (G.guastoMani != null ? G.guastoMani : GUASTO_MANI)) return false;
+  const capo = capoclassifica();
+  if (capo < 0 || capo === me) return false;
+  const soglia = (G.guastoSoglia != null ? G.guastoSoglia : GUASTO_SOGLIA);
+  if ((pl[capo].score || 0) - (pl[me].score || 0) <= soglia) return false;
+  /* Si arrendono soltanto gli ultimi due della classifica, ricalcolati a ogni
+     mano: chi risale smette di fare il guastatore e torna a giocare per sé.
+     Serve a non togliere dalla corsa chi sta ancora lottando davvero. */
+  const soloCoda = (G.guastoSoloCoda != null ? G.guastoSoloCoda : GUASTO_SOLO_CODA);
+  if (soloCoda) {
+    let peggiori = 0;
+    for (let i = 0; i < pl.length; i++) if (i !== me && (pl[i].score || 0) < (pl[me].score || 0)) peggiori++;
+    if (peggiori > 1) return false;          // ce ne sono almeno due sotto di me: non sono in coda
+  }
+  return true;
 }
 
 /**
@@ -1684,7 +1849,8 @@ function chooseCardAI(me, ctx) {
     cfg().minSims, 400
   );
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const budget = cfg().budget * ((pers && pers.think) || 1);
+  const concC = (pers && pers.concentrazione && quantoIndietro(me) > ((pers.rincorsaSoglia) || 12)) ? pers.concentrazione : 1;
+  const budget = cfg().budget * ((pers && pers.think) || 1) * concC;
 
   /* --- La mano è bruciata? ------------------------------------------------
      Se la previsione non è più raggiungibile — ne ha già fatte più di quante
@@ -1720,12 +1886,7 @@ function chooseCardAI(me, ctx) {
   /* Pesi delle vittime: a parità di punti in gioco si colpisce più volentieri
      chi è in testa, e chi in questa partita ti ha già rovinato una mano. */
   const capo = capoclassifica();
-  const pesoVittima = i => {
-    let w = 1;
-    if (i === capo) w *= 1.6;
-    w *= 1 + 0.35 * Math.min(2, MEMORIA.rancore[me][i]);
-    return w;
-  };
+  const pesoVittima = i => pesoDellaVittima(me, i, capo);
 
   const scores = [];
   const forza = (pers && pers.lettura) || 0;

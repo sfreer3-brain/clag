@@ -4,12 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f5132">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="CLAG">
-<meta name="mobile-web-app-capable" content="yes">
 <title>Tavolo CLAG</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -238,6 +232,16 @@ aside.side{width:352px;flex-shrink:0;background:var(--panel);border-left:1px sol
 .sfida .codice{font-family:var(--fdisp);font-size:23px;letter-spacing:3px;color:var(--gold)}
 .sfidanota{font-size:12px;color:var(--dim)}
 .versione{font-size:11.5px;color:var(--dim);letter-spacing:.4px;margin-top:10px;text-align:center}
+
+/* ---------- riquadro "riprendi la partita" ---------- */
+.ripresa{margin:0 0 16px;padding:13px 14px;border:1px solid #c8a748;border-radius:12px;
+  background:linear-gradient(180deg,rgba(233,196,106,.13),rgba(233,196,106,.05))}
+.ripresa.avviso{border-color:var(--line);background:var(--panel2)}
+.ripresa .riptit{font-family:var(--fdisp);font-size:17px;color:var(--gold);margin-bottom:3px}
+.ripresa.avviso .riptit{font-family:inherit;font-size:13.5px;color:#cfe0d6;margin:0}
+.ripresa .ripsub{font-size:13px;color:#cfe0d6;line-height:1.45;margin-bottom:11px}
+.ripresa .ripaz{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.btn.piccolo{font-size:13px;padding:7px 12px}
 .grab{display:none}
 aside h3{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
   margin:16px 0 7px;font-weight:700}
@@ -514,6 +518,7 @@ table.final tr.me td{color:var(--gold);font-weight:700}
 <div class="ov" id="ovStart">
   <div class="box">
     <h1>CLAG</h1>
+    <div class="ripresa hidden" id="ripBox"></div>
     <p>Variante italiana a 40 carte · 14 mani · 5 giocatori. Dichiara le prese e centrale esattamente: sbagliare di una vale zero.</p>
     <div class="grid">
       <div><label>Il tuo nome</label><input type="text" id="inName" value="Tu" maxlength="12"></div>
@@ -578,7 +583,7 @@ Con un <b>codice smazzata</b> ricevi le stesse identiche carte di chi te l'ha pa
 /* ------------------------------ Costanti ------------------------------ */
 
 /** Versione del gioco: si vede nella schermata iniziale e nel Debug. */
-const CLAG_VERSIONE = 'v17';
+const CLAG_VERSIONE = 'v18';
 
 /* ------------------------ Codice della smazzata ------------------------
    Una partita è decisa da un numero: da quel numero un generatore
@@ -2555,6 +2560,10 @@ async function newGame(names) {
   GEN++;
   const gen = GEN;
   abortPending();
+  /* Una partita nuova butta quella lasciata a metà: da qui in poi il
+     salvataggio descrive questa. */
+  RIPRESA = null;
+  ripCancella();
   setupPlayers(names);
   G.handIndex = 0; G.trump = null; G.trickNo = 0; G.cardsPerHand = 0;
   G.playedCards = []; G.voids = emptyVoids(); G.trickLog = []; G.handLog = [];
@@ -2576,17 +2585,22 @@ async function newGame(names) {
   }
 }
 
-async function runGame(gen) {
-  for (G.handIndex = 0; G.handIndex < HAND_SIZES.length; G.handIndex++) {
+async function runGame(gen, daMano) {
+  for (G.handIndex = daMano || 0; G.handIndex < HAND_SIZES.length; G.handIndex++) {
     await playHand(gen);
     checkGen(gen);
   }
   G.phase = 'gameEnd';
   render();
+  if (typeof ripCancella === 'function') ripCancella();   // partita finita: niente da riprendere
   showEndScreen();
 }
 
 async function playHand(gen) {
+  /* Se stiamo riprendendo una partita interrotta, questa mano non si gioca:
+     si ripercorre. `rip` tiene briscola, dichiarazioni e carte già uscite. */
+  const rip = ripMano();
+
   /* ---- Fase A: distribuzione ---- */
   G.cardsPerHand = HAND_SIZES[G.handIndex];
   G.dealer = dealerOfHand(G.startDealer, G.handIndex);
@@ -2600,16 +2614,20 @@ async function playHand(gen) {
   const deck = shuffleDeck(createDeck(), rngDellaMano(G.seme, G.handIndex));
   const dealt = dealCards(deck, NUM_PLAYERS, G.cardsPerHand);
   G.players.forEach((p, i) => { p.hand = dealt.hands[i]; });
-  lbStartHand({ carte: G.cardsPerHand, mazziere: G.dealer, chooser: G.chooser });
+  lbStartHand({ n: G.handIndex + 1, carte: G.cardsPerHand,
+                mazziere: G.dealer, chooser: G.chooser });
 
   G.phase = 'trump';
   G.currentPlayer = G.chooser;
   render();
-  await sleep(Math.min(500, G.speed));
-  checkGen(gen);
+  /* Fotografia a carte appena date: se chiudi l'app mentre scegli la
+     briscola, riprendi da qui e non dalla mano prima. */
+  if (!rip) { ripSalva(); await sleep(Math.min(500, G.speed)); checkGen(gen); }
 
   /* ---- Fase B: scelta della briscola ---- */
-  if (G.players[G.chooser].isHuman) {
+  if (rip && rip.trump) {
+    G.trump = rip.trump;                       // già scelta prima dell'interruzione
+  } else if (G.players[G.chooser].isHuman) {
     const s = await askTrumpHuman();
     checkGen(gen);
     G.trump = s;
@@ -2626,6 +2644,7 @@ async function playHand(gen) {
     G.trump = r.suit;
   }
   render();
+  ripSalva();
 
   /* ---- Fase C: dichiarazioni ---- */
   G.phase = 'bidding';
@@ -2633,9 +2652,12 @@ async function playHand(gen) {
     G.currentPlayer = i;
     render();
     const p = G.players[i];
-    if (p.isHuman) {
+    if (rip && rip.bids[i] != null) {
+      p.bid = rip.bids[i];                     // già dichiarata prima dell'interruzione
+    } else if (p.isHuman) {
       p.bid = await askBidHuman();
       checkGen(gen);
+      ripSalva();
     } else {
       const known = G.players.map(x => x.bid);
       const r = estimateBidAI(i, G.trump, known, aiCtx(i));
@@ -2648,6 +2670,7 @@ async function playHand(gen) {
         p.bluffInfo = { kind: 'bid', from: r.bluffFrom, to: r.bid };
         dbg('  ↳ bluff: la dichiarazione di massimo valore era ' + r.bluffFrom);
       }
+      ripSalva();
     }
     render();
   }
@@ -2673,6 +2696,11 @@ async function playHand(gen) {
   lbHandInfo({ briscola: SUIT_INFO[G.trump].name, briscolaSeme: SUIT_INFO[G.trump].name });
   lbEndHand({ previsione: rows.map(r => r.bid), prese: rows.map(r => r.tricks),
               punti: rows.map(r => r.pts) });
+  /* La mano è chiusa: la registrazione ha esaurito il suo compito e da qui
+     in poi si gioca dal vivo. Il salvataggio buono resta quello scritto dopo
+     l'ultima carta: se chiudi l'app davanti al riepilogo, alla ripresa la
+     mano viene ripercorsa in un lampo e il riepilogo torna lì com'era. */
+  ripFineMano();
   render();
   showHandSummary(rows);
   await waitContinue(G.handIndex === HAND_SIZES.length - 1 ? 'Vedi il risultato finale ▶' : 'Mano successiva ▶',
@@ -2685,16 +2713,17 @@ async function playTrick(gen, leader) {
   G.trick = { leader, plays: [], ledSuit: null };
   G.phase = 'playing';
   render();
-  await sleep(Math.min(320, G.speed));
-  checkGen(gen);
+  if (!ripAttiva()) { await sleep(Math.min(320, G.speed)); checkGen(gen); }
 
   for (let i = 0; i < NUM_PLAYERS; i++) {
     const pi = (leader + i) % NUM_PLAYERS;
     const p = G.players[pi];
     G.currentPlayer = pi;
     render();
-    let card;
-    if (p.isHuman) {
+    let card = ripProssimaCarta(p.hand);   // carta già giocata prima dell'interruzione
+    if (card) {
+      /* rigioco: nessuna attesa, nessuna decisione da prendere */
+    } else if (p.isHuman) {
       card = await waitHumanCard();
       checkGen(gen);
       if (!card) throw new AbortGame();
@@ -2713,6 +2742,9 @@ async function playTrick(gen, leader) {
     G.trick.plays.push({ player: pi, card });
     G.playedCards.push(card);
     render();
+    /* Fotografia dopo ogni carta: è il punto in cui si può essere
+       interrotti senza accorgersene (una telefonata, l'app chiusa). */
+    if (!ripAttiva()) ripSalva();
   }
 
   const w = determineTrickWinner(G.trick.plays, G.trick.ledSuit, G.trump);
@@ -2731,7 +2763,9 @@ async function playTrick(gen, leader) {
   G.phase = 'trickEnd';
   G.currentPlayer = w;
   render();
-  if (G.trickNo < G.cardsPerHand) {
+  if (ripAttiva()) {
+    /* rigioco: si tira dritto fino al punto in cui eri rimasto */
+  } else if (G.trickNo < G.cardsPerHand) {
     await waitContinue('Prossima presa ▶');
     checkGen(gen);
   } else {
@@ -2739,8 +2773,7 @@ async function playTrick(gen, leader) {
     checkGen(gen);
   }
   // la presa viene "raccolta" da chi l'ha vinta
-  await animateTrickTo(w);
-  checkGen(gen);
+  if (!ripAttiva()) { await animateTrickTo(w); checkGen(gen); }
   G.trick = { leader: w, plays: [], ledSuit: null };
   return w;
 }
@@ -2895,6 +2928,7 @@ function lbSave() {
 function lbStartGame(players, difficulty) {
   LB.current = {
     id: lbId(), inizio: lbNow(), fine: null, livello: difficulty,
+    versione: CLAG_VERSIONE,
     giocatori: players.map(p => ({ nome: p.name, umano: !!p.isHuman,
                                    stile: p.pers ? p.pers.label : '' })),
     mani: [], completa: false
@@ -2902,6 +2936,31 @@ function lbStartGame(players, difficulty) {
   LB.hand = null;
   LB.games.push(LB.current);
   while (LB.games.length > LB_MAX_GAMES) LB.games.shift();
+  lbSave();
+}
+
+/**
+ * Partita ripresa dopo un'interruzione: invece di aprire una riga nuova nel
+ * registro si riprende quella di prima, così il CSV esce continuo e l'analisi
+ * vede una partita sola. La mano rimasta a metà viene buttata: il rigioco la
+ * riscrive daccapo, presa per presa.
+ */
+function lbRiprendiPartita(id, players, difficulty, daMano) {
+  const g = id ? LB.games.filter(x => x.id === id)[0] : null;
+  if (!g) { lbStartGame(players, difficulty); return; }
+  /* si tengono solo le mani chiuse *prima* del punto di ripresa: quelle dopo
+     (una mano a metà, o una chiusa mentre il salvataggio era più indietro)
+     vengono riscritte dal rigioco */
+  while (g.mani.length > (daMano || 0)) g.mani.pop();
+  while (g.mani.length && !g.mani[g.mani.length - 1].esito) g.mani.pop();
+  g.completa = false;
+  g.fine = null;
+  /* Ripresa dopo un aggiornamento: la partita è stata giocata con due motori
+     diversi e nel registro deve restare scritto. */
+  if (g.versione && g.versione !== CLAG_VERSIONE) g.versione += '→' + CLAG_VERSIONE;
+  else g.versione = CLAG_VERSIONE;
+  LB.current = g;
+  LB.hand = null;
   lbSave();
 }
 
@@ -2944,7 +3003,11 @@ function lbCell(v) {
 }
 const lbRow = (cols, r) => cols.map(c => lbCell(r[c])).join(';');
 
-const LB_HAND_COLS = ['partita', 'data', 'livello', 'mano', 'carte', 'mazziere', 'briscola',
+/* La versione del motore va in ogni riga, non solo nel nome del file: nello
+   stesso registro convivono partite giocate con motori diversi, e un confronto
+   fra due versioni si fa solo se ogni riga sa da quale viene. Le partite
+   registrate prima che questa colonna esistesse restano vuote. */
+const LB_HAND_COLS = ['partita', 'versione', 'data', 'livello', 'mano', 'carte', 'mazziere', 'briscola',
   'sceglie_briscola', 'giocatore', 'umano', 'previsione', 'prese_fatte', 'scarto',
   'centrata', 'punti_mano', 'punti_totali', 'somma_previsioni', 'differenza_tavolo'];
 
@@ -2961,7 +3024,7 @@ function lbHandsCSV() {
       nomi.forEach((nome, i) => {
         run[i] += e.punti[i];
         out.push(lbRow(LB_HAND_COLS, {
-          partita: g.id, data: lbStamp(g.inizio), livello: g.livello,
+          partita: g.id, versione: g.versione || '', data: lbStamp(g.inizio), livello: g.livello,
           mano: h.n, carte: h.carte, mazziere: nomi[h.mazziere], briscola: h.briscola,
           sceglie_briscola: nomi[h.chooser], giocatore: nome, umano: g.giocatori[i].umano ? 1 : 0,
           previsione: e.previsione[i], prese_fatte: e.prese[i],
@@ -2976,7 +3039,7 @@ function lbHandsCSV() {
   return out.join('\n');
 }
 
-const LB_PLAY_COLS = ['partita', 'data', 'livello', 'mano', 'carte', 'briscola', 'presa',
+const LB_PLAY_COLS = ['partita', 'versione', 'data', 'livello', 'mano', 'carte', 'briscola', 'presa',
   'seme_partenza', 'ordine', 'giocatore', 'umano', 'carta', 'rango', 'seme', 'e_briscola',
   'vince_presa', 'previsione', 'prese_fatte', 'centrata'];
 
@@ -2991,7 +3054,7 @@ function lbPlaysCSV() {
         t.giocate.forEach((pl, k) => {
           const i = pl.g;
           out.push(lbRow(LB_PLAY_COLS, {
-            partita: g.id, data: lbStamp(g.inizio), livello: g.livello,
+            partita: g.id, versione: g.versione || '', data: lbStamp(g.inizio), livello: g.livello,
             mano: h.n, carte: h.carte, briscola: h.briscola,
             presa: t.n, seme_partenza: t.seme, ordine: k + 1,
             giocatore: nomi[i], umano: g.giocatori[i].umano ? 1 : 0,
@@ -3047,8 +3110,8 @@ function lbDownload(name, text) {
 
 function lbFileName(kind) {
   const d = new Date(), p = n => String(n).padStart(2, '0');
-  return 'clag-' + kind + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
-         '-' + p(d.getHours()) + p(d.getMinutes()) + '.csv';
+  return 'clag-' + CLAG_VERSIONE + '-' + kind + '-' + d.getFullYear() + p(d.getMonth() + 1) +
+         p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.csv';
 }
 
 /* --------------------------- scheda Debug ----------------------------- */
@@ -3117,6 +3180,7 @@ function lbRenderPanel() {
     $('#ovDbg').classList.add('hidden');
     $('#ovEnd').classList.add('hidden');
     $('#ovStart').classList.remove('hidden');
+    if (typeof ripPreparaAvvio === 'function') ripPreparaAvvio();
   };
 
   const nota = m => { $('#lbNote').textContent = m; };
@@ -3257,6 +3321,275 @@ function anCollegaScheda() {
       catch (err) { AN_ULTIMA = null; }
       AN_INCORSO = false; lbRenderPanel();
     }, 40);
+  };
+}
+/* ==========================================================================
+   CLAG — Ripresa della partita interrotta
+   --------------------------------------------------------------------------
+   Il telefono squilla, chiudi l'app, torni dopo un'ora e la partita non c'è
+   più. Qui si rimedia.
+
+   Non si salva lo stato del tavolo carta per carta, perché non serve: una
+   partita è decisa da un numero (il seme, lo stesso che sta dietro al codice
+   smazzata), e da quel numero le quattordici mani si ricalcolano sempre
+   identiche. Basta quindi ricordare:
+
+     · il seme e il mazziere iniziale — da cui rinascono tutte le carte;
+     · a che mano eravamo, i punteggi e lo storico delle mani chiuse;
+     · della mano in corso: la briscola, le dichiarazioni e l'elenco ordinato
+       delle carte già uscite.
+
+   Alla ripresa la mano viene *rigiocata in un lampo*: si ridistribuiscono le
+   stesse carte e si ripercorrono le giocate registrate senza chiedere niente
+   a nessuno e senza attese. Quando la registrazione finisce, il gioco
+   riprende dal vivo esattamente dove l'avevi lasciato. Le CPU non "rifanno"
+   le loro scelte: rigiocano quelle che avevano già fatto, altrimenti alla
+   ripresa il tavolo sarebbe un altro.
+
+   Tutto sta nella memoria locale del dispositivo: non esce di lì, e se non è
+   disponibile (navigazione privata, memoria piena) l'app funziona come prima,
+   semplicemente senza ripresa.
+   ========================================================================== */
+
+const RIP_KEY = 'clag.partita.in.corso';
+const RIP_V = 1;
+
+let RIP_OK = true;      // la memoria locale è utilizzabile
+let RIPRESA = null;     // registrazione in corso di rigioco, o null
+
+/** Sollevata quando la registrazione non combacia con le carte ridistribuite. */
+function RipresaRotta(msg) { this.messaggio = msg || 'registrazione incoerente'; }
+
+/* ---------------------------- Memoria locale ---------------------------- */
+
+function ripScrivi(o) {
+  if (!RIP_OK) return;
+  try { window.localStorage.setItem(RIP_KEY, JSON.stringify(o)); }
+  catch (e) { RIP_OK = false; }          // memoria piena o navigazione privata
+}
+
+function ripCancella() {
+  try { window.localStorage.removeItem(RIP_KEY); } catch (e) { RIP_OK = false; }
+}
+
+/** Legge il salvataggio e ne controlla la forma. Null se non c'è o non torna. */
+function ripLeggi() {
+  let o;
+  try {
+    const raw = window.localStorage.getItem(RIP_KEY);
+    if (!raw) return null;
+    o = JSON.parse(raw);
+  } catch (e) { RIP_OK = false; return null; }
+  if (!o || o.v !== RIP_V) return null;
+  if (typeof o.seme !== 'number' || typeof o.mazziere0 !== 'number') return null;
+  if (!(o.handIndex >= 0 && o.handIndex < HAND_SIZES.length)) return null;
+  if (!Array.isArray(o.nomi) || o.nomi.length !== NUM_PLAYERS) return null;
+  if (!Array.isArray(o.punti) || o.punti.length !== NUM_PLAYERS) return null;
+  if (!Array.isArray(o.giocate)) return null;
+  return o;
+}
+
+/* ---------------------------- Salvataggio ------------------------------ */
+
+/**
+ * Fotografa la partita com'è adesso. Chiamata dopo ogni carta, ogni
+ * dichiarazione e a fine mano: costa pochi millesimi e un paio di KB.
+ */
+function ripSalva() {
+  if (!RIP_OK) return;
+  if (!G.players.length || G.phase === 'idle' || G.phase === 'gameEnd') return;
+  const nMani = G.players[0].handResults.length;
+  const storico = [];
+  for (let h = 0; h < nMani; h++) {
+    storico.push({
+      bid:    G.players.map(p => p.handResults[h].bid),
+      tricks: G.players.map(p => p.handResults[h].tricks),
+      pts:    G.players.map(p => p.handResults[h].pts)
+    });
+  }
+  ripScrivi({
+    v: RIP_V,
+    versione: CLAG_VERSIONE,
+    quando: Date.now(),
+    nomi: G.players.map(p => p.name),
+    livello: G.difficulty,
+    punteggio: G.scoring,
+    seme: G.seme,
+    mazziere0: G.startDealer,
+    handIndex: G.handIndex,
+    punti: G.players.map(p => p.score),
+    storico: storico,
+    memoria: {
+      mani: MEMORIA.mani.slice(),
+      esatte: MEMORIA.esatte.slice(),
+      rancore: MEMORIA.rancore.map(r => r.slice())
+    },
+    /* la mano in corso */
+    trump: G.trump,
+    bids: G.players.map(p => p.bid),
+    giocate: G.playedCards.map(c => c.id),
+    registro: (typeof LB !== 'undefined' && LB.current) ? LB.current.id : null
+  });
+}
+
+/* ------------------------ Rigioco della mano --------------------------- */
+
+/** La registrazione riguarda la mano che stiamo per giocare? */
+function ripMano() {
+  return (RIPRESA && RIPRESA.handIndex === G.handIndex) ? RIPRESA : null;
+}
+
+/** Ci sono ancora carte registrate da ripercorrere? */
+function ripAttiva() {
+  const r = ripMano();
+  return !!(r && r.i < r.giocate.length);
+}
+
+/**
+ * La prossima carta registrata, cercata fra quelle che il giocatore ha in
+ * mano. Se non c'è, la registrazione non corrisponde più alle carte: meglio
+ * fermarsi che proseguire con una partita diversa da quella di prima.
+ */
+function ripProssimaCarta(mano) {
+  const r = ripMano();
+  if (!r || r.i >= r.giocate.length) return null;
+  const id = r.giocate[r.i];
+  const c = mano.filter(x => x.id === id)[0];
+  if (!c) throw new RipresaRotta('la carta ' + id + ' non è in mano');
+  r.i++;
+  return c;
+}
+
+/** Fine mano: da qui in poi si gioca dal vivo. */
+function ripFineMano() { if (ripMano()) RIPRESA = null; }
+
+/* ------------------------- Riepilogo per l'avvio ------------------------ */
+
+/** Riga leggibile per il riquadro della schermata iniziale. */
+function ripRiepilogo(s) {
+  const io = 0;
+  const mano = s.handIndex + 1;
+  const carte = HAND_SIZES[s.handIndex];
+  const ord = s.punti.slice().sort((a, b) => b - a);
+  const pos = ord.indexOf(s.punti[io]) + 1;
+  const d = new Date(s.quando);
+  const p = n => String(n).padStart(2, '0');
+  const oggi = new Date();
+  const stessoGiorno = d.toDateString() === oggi.toDateString();
+  const quando = stessoGiorno
+    ? 'oggi alle ' + p(d.getHours()) + ':' + p(d.getMinutes())
+    : p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' alle ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  return {
+    titolo: 'Mano ' + mano + ' di ' + HAND_SIZES.length + ' — ' + carte +
+            (carte === 1 ? ' carta' : ' carte'),
+    dettaglio: s.punti[io] + ' punti, ' + pos + (pos === 1 ? '° posto' : '° posto') +
+               ' · interrotta ' + quando,
+    codice: codiceDaSeme(s.seme, s.mazziere0)
+  };
+}
+
+/* ----------------------------- La ripresa ------------------------------ */
+
+/**
+ * Rimette in piedi la partita salvata e la fa ripartire. Se la registrazione
+ * non regge (aggiornamento del motore che ha cambiato le carte, salvataggio
+ * corrotto) si torna alla schermata iniziale senza drammi.
+ */
+async function riprendiPartita(s) {
+  GEN++;
+  const gen = GEN;
+  abortPending();
+  setupPlayers(s.nomi);
+  G.difficulty = s.livello || 'esperto';
+  G.scoring = s.punteggio || 'classico';
+  G.seme = s.seme;
+  G.startDealer = s.mazziere0;
+  G.codice = codiceDaSeme(G.seme, G.startDealer);
+  G.players.forEach((p, i) => { p.score = s.punti[i] || 0; });
+  (s.storico || []).forEach(r => {
+    G.players.forEach((p, i) => p.handResults.push({
+      name: p.name, bid: r.bid[i], tricks: r.tricks[i], pts: r.pts[i],
+      exact: r.bid[i] === r.tricks[i]
+    }));
+  });
+  if (s.memoria && Array.isArray(s.memoria.mani)) {
+    MEMORIA.mani = s.memoria.mani.slice();
+    MEMORIA.esatte = s.memoria.esatte.slice();
+    MEMORIA.rancore = s.memoria.rancore.map(r => r.slice());
+  } else { resetMemoria(); }
+  G.handIndex = s.handIndex;
+  G.trump = null; G.trickNo = 0; G.cardsPerHand = HAND_SIZES[s.handIndex];
+  G.playedCards = []; G.voids = emptyVoids(); G.trickLog = []; G.handLog = [];
+  G.debugLines = []; G.phase = 'idle'; G.currentPlayer = -1;
+  G.dealer = dealerOfHand(G.startDealer, s.handIndex);
+  G.chooser = trumpChooserOf(G.dealer);
+
+  RIPRESA = { handIndex: s.handIndex, trump: s.trump || null,
+              bids: Array.isArray(s.bids) ? s.bids : [null, null, null, null, null],
+              giocate: s.giocate.slice(), i: 0 };
+
+  lbRiprendiPartita(s.registro, G.players, G.difficulty, s.handIndex);
+  $('#ovEnd').classList.add('hidden');
+  $('#ovStart').classList.add('hidden');
+  render();
+  try {
+    await runGame(gen, s.handIndex);
+  } catch (e) {
+    RIPRESA = null;
+    if (e instanceof RipresaRotta) {
+      ripCancella();
+      G.phase = 'idle';
+      $('#ovStart').classList.remove('hidden');
+      ripMostraAvviso('La partita salvata non è più ricostruibile (' + e.messaggio +
+                      '): è stata cancellata. Puoi iniziarne una nuova.');
+      return;
+    }
+    if (!(e instanceof AbortGame)) throw e;
+  }
+}
+
+/* --------------------- Riquadro nella schermata iniziale ---------------- */
+
+function ripMostraAvviso(testo) {
+  const box = document.getElementById('ripBox');
+  if (!box) return;
+  box.className = 'ripresa avviso';
+  box.innerHTML = '<div class="riptit">' + testo + '</div>';
+}
+
+/**
+ * Se c'è una partita da riprendere, la mette in cima alla schermata
+ * iniziale. Altrimenti il riquadro resta invisibile.
+ */
+function ripPreparaAvvio() {
+  const box = document.getElementById('ripBox');
+  if (!box) return;
+  const s = ripLeggi();
+  if (!s) { box.classList.add('hidden'); return; }
+  const r = ripRiepilogo(s);
+  /* il menu della difficoltà mostra quella della partita salvata, così non
+     sembra che riprendendo si cambi livello */
+  if ($('#inDiff') && s.livello) $('#inDiff').value = s.livello;
+  box.classList.remove('hidden');
+  box.className = 'ripresa';
+  box.innerHTML =
+    '<div class="riptit">Partita interrotta</div>' +
+    '<div class="ripsub">' + r.titolo + '<br>' + r.dettaglio + '</div>' +
+    '<div class="ripaz">' +
+      '<button class="btn primary" id="btnRiprendi">Riprendi la partita</button>' +
+      '<button class="btn piccolo" id="btnScarta">Scarta</button>' +
+    '</div>';
+  document.getElementById('btnRiprendi').onclick = () => {
+    G.speed = parseInt($('#selSpeed').value, 10);
+    G.auto = $('#chkAuto').checked;
+    G.debug = $('#chkDebug').checked;
+    G.bluff = true;
+    $('#selDiff').value = s.livello || 'esperto';
+    riprendiPartita(s);
+  };
+  document.getElementById('btnScarta').onclick = () => {
+    ripCancella();
+    box.classList.add('hidden');
   };
 }
 /* ==========================================================================
@@ -3825,6 +4158,7 @@ function boot() {
     abortPending();
     $('#ovEnd').classList.add('hidden');
     $('#ovStart').classList.remove('hidden');
+    ripPreparaAvvio();
   };
 
   // API da console: CLAG.runRulesTests(), CLAG.simulateFullGame(seed), CLAG.G …
@@ -3887,13 +4221,16 @@ function seguiBarra() {
   if (h && typeof ResizeObserver !== 'undefined') new ResizeObserver(misuraBarra).observe(h);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { boot(); seguiBarra(); collegaManiglia(); mostraVersione(); });
-else { boot(); seguiBarra(); collegaManiglia(); }
-</script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+function avvio() {
+  boot();
+  seguiBarra();
+  collegaManiglia();
+  mostraVersione();
+  ripPreparaAvvio();     // se c'è una partita lasciata a metà, la propone
 }
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', avvio);
+else avvio();
 </script>
 </body>
 </html>

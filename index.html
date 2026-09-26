@@ -241,7 +241,18 @@ aside.side{width:352px;flex-shrink:0;background:var(--panel);border-left:1px sol
 .ripresa.avviso .riptit{font-family:inherit;font-size:13.5px;color:#cfe0d6;margin:0}
 .ripresa .ripsub{font-size:13px;color:#cfe0d6;line-height:1.45;margin-bottom:11px}
 .ripresa .ripaz{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.ripresa .ripnota{margin-top:9px;font-size:11.5px;color:var(--dim);line-height:1.45}
 .btn.piccolo{font-size:13px;padding:7px 12px}
+.riptit2{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
+  margin:15px 0 7px;font-weight:700}
+.ripprese{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:4px 9px}
+.ripprese .riprow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}
+.ripprese .riprow:last-child{border-bottom:0}
+.ripprese .ripn{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;
+  border-radius:50%;background:#2a3a48;color:var(--dim);font-size:11px;font-weight:700;flex:0 0 auto}
+.rignota{margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel2);font-size:12.5px;color:#cfe0d6;line-height:1.45}
 .grab{display:none}
 aside h3{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--dim);
   margin:16px 0 7px;font-weight:700}
@@ -565,6 +576,9 @@ Con un <b>codice smazzata</b> ricevi le stesse identiche carte di chi te l'ha pa
     </div>
   </div>
 </div>
+
+<!-- riepilogo della mano, quando si riprende una partita interrotta -->
+<div class="ov hidden" id="ovRip"><div class="box" id="ripBoxMano"></div></div>
 
 <!-- schermata finale -->
 <div class="ov hidden" id="ovEnd"><div class="box" id="endBox"></div></div>
@@ -2563,6 +2577,8 @@ async function newGame(names) {
   /* Una partita nuova butta quella lasciata a metà: da qui in poi il
      salvataggio descrive questa. */
   RIPRESA = null;
+  RIP_RIEPILOGO = false;
+  RIP_RIGIOCATE = [];
   ripCancella();
   setupPlayers(names);
   G.handIndex = 0; G.trump = null; G.trickNo = 0; G.cardsPerHand = 0;
@@ -2615,7 +2631,8 @@ async function playHand(gen) {
   const dealt = dealCards(deck, NUM_PLAYERS, G.cardsPerHand);
   G.players.forEach((p, i) => { p.hand = dealt.hands[i]; });
   lbStartHand({ n: G.handIndex + 1, carte: G.cardsPerHand,
-                mazziere: G.dealer, chooser: G.chooser });
+                mazziere: G.dealer, chooser: G.chooser,
+                rigiocata: ripManoRigiocata(G.handIndex + 1) });
 
   G.phase = 'trump';
   G.currentPlayer = G.chooser;
@@ -2654,7 +2671,12 @@ async function playHand(gen) {
     const p = G.players[i];
     if (rip && rip.bids[i] != null) {
       p.bid = rip.bids[i];                     // già dichiarata prima dell'interruzione
-    } else if (p.isHuman) {
+      render();
+      continue;
+    }
+    await ripPausaRiepilogo();                 // prima decisione dal vivo dopo una ripresa
+    checkGen(gen);
+    if (p.isHuman) {
       p.bid = await askBidHuman();
       checkGen(gen);
       ripSalva();
@@ -2721,6 +2743,10 @@ async function playTrick(gen, leader) {
     G.currentPlayer = pi;
     render();
     let card = ripProssimaCarta(p.hand);   // carta già giocata prima dell'interruzione
+    if (!card) {
+      await ripPausaRiepilogo();           // prima decisione dal vivo dopo una ripresa
+      checkGen(gen);
+    }
     if (card) {
       /* rigioco: nessuna attesa, nessuna decisione da prendere */
     } else if (p.isHuman) {
@@ -2810,6 +2836,13 @@ function showEndScreen() {
   const pos = rank.indexOf(me) + 1;
   html += '<p style="margin-top:12px;color:#e8eef3">Hai chiuso <b>' + pos + '°</b> con <b>' + me.score +
           '</b> punti e ' + exact(me) + ' previsioni esatte su 14.</p>' +
+          (RIP_RIGIOCATE.length
+            ? '<div class="rignota">Hai ricominciato da capo ' +
+              (RIP_RIGIOCATE.length === 1 ? 'la mano ' : 'le mani ') + RIP_RIGIOCATE.join(', ') +
+              ' dopo un\'interruzione, con le carte degli altri già in parte note: ' +
+              'questo punteggio non è confrontabile con quello di una partita giocata di seguito, ' +
+              'e l\'analisi salta quelle mani.</div>'
+            : '') +
           '<div class="dbtns"><button class="btn primary" id="btnAgain">Gioca ancora</button>' +
           '<button class="btn" id="btnAnalizza">Analizza la partita</button></div>' +
           '<div class="sfida">' +
@@ -3009,7 +3042,7 @@ const lbRow = (cols, r) => cols.map(c => lbCell(r[c])).join(';');
    registrate prima che questa colonna esistesse restano vuote. */
 const LB_HAND_COLS = ['partita', 'versione', 'data', 'livello', 'mano', 'carte', 'mazziere', 'briscola',
   'sceglie_briscola', 'giocatore', 'umano', 'previsione', 'prese_fatte', 'scarto',
-  'centrata', 'punti_mano', 'punti_totali', 'somma_previsioni', 'differenza_tavolo'];
+  'centrata', 'punti_mano', 'punti_totali', 'somma_previsioni', 'differenza_tavolo', 'rigiocata'];
 
 /** Riepilogo: una riga per giocatore per ogni mano giocata. */
 function lbHandsCSV() {
@@ -3031,7 +3064,8 @@ function lbHandsCSV() {
           scarto: e.prese[i] - e.previsione[i],
           centrata: e.prese[i] === e.previsione[i] ? 1 : 0,
           punti_mano: e.punti[i], punti_totali: run[i],
-          somma_previsioni: somma, differenza_tavolo: somma - h.carte
+          somma_previsioni: somma, differenza_tavolo: somma - h.carte,
+          rigiocata: h.rigiocata ? 1 : 0
         }));
       });
     });
@@ -3041,7 +3075,7 @@ function lbHandsCSV() {
 
 const LB_PLAY_COLS = ['partita', 'versione', 'data', 'livello', 'mano', 'carte', 'briscola', 'presa',
   'seme_partenza', 'ordine', 'giocatore', 'umano', 'carta', 'rango', 'seme', 'e_briscola',
-  'vince_presa', 'previsione', 'prese_fatte', 'centrata'];
+  'vince_presa', 'previsione', 'prese_fatte', 'centrata', 'rigiocata'];
 
 /** Dettaglio: una riga per ogni carta giocata. */
 function lbPlaysCSV() {
@@ -3063,7 +3097,8 @@ function lbPlaysCSV() {
             vince_presa: nomi[t.vincitore],
             previsione: e ? e.previsione[i] : '',
             prese_fatte: e ? e.prese[i] : '',
-            centrata: e ? (e.prese[i] === e.previsione[i] ? 1 : 0) : ''
+            centrata: e ? (e.prese[i] === e.previsione[i] ? 1 : 0) : '',
+            rigiocata: h.rigiocata ? 1 : 0
           }));
         });
       });
@@ -3271,6 +3306,12 @@ function anTabella(r) {
   h += '<p class="lbnote2">Punti attesi persi per la dichiarazione: <b>' +
        r.costoDich.toFixed(1) + '</b> · per carte giocate male: <b>' +
        r.perditaGioco.toFixed(1) + '</b></p>';
+  if (r.rigiocate)
+    h += '<div class="rignota"><b>' + r.rigiocate + (r.rigiocate === 1 ? ' mano rigiocata' :
+         ' mani rigiocate') + ' da capo dopo un\'interruzione</b>: ' +
+         (r.rigiocate === 1 ? 'è stata esclusa' : 'sono state escluse') +
+         ' dai voti, perché chi le ha rigiocate aveva già visto le carte uscite. ' +
+         'Anche il punteggio finale della partita va preso con le molle.</div>';
   h += '<div class="dbg" style="max-height:320px">';
   r.righe.forEach(x => {
     if (x.verdetto === 'centrata') return;
@@ -3354,8 +3395,10 @@ function anCollegaScheda() {
 const RIP_KEY = 'clag.partita.in.corso';
 const RIP_V = 1;
 
-let RIP_OK = true;      // la memoria locale è utilizzabile
-let RIPRESA = null;     // registrazione in corso di rigioco, o null
+let RIP_OK = true;        // la memoria locale è utilizzabile
+let RIPRESA = null;       // registrazione in corso di rigioco, o null
+let RIP_RIEPILOGO = false; // c'è un riepilogo da mostrare appena si torna dal vivo
+let RIP_RIGIOCATE = [];    // numeri delle mani ricominciate da capo dopo un'interruzione
 
 /** Sollevata quando la registrazione non combacia con le carte ridistribuite. */
 function RipresaRotta(msg) { this.messaggio = msg || 'registrazione incoerente'; }
@@ -3428,9 +3471,13 @@ function ripSalva() {
     trump: G.trump,
     bids: G.players.map(p => p.bid),
     giocate: G.playedCards.map(c => c.id),
+    rigiocate: RIP_RIGIOCATE.slice(),
     registro: (typeof LB !== 'undefined' && LB.current) ? LB.current.id : null
   });
 }
+
+/** Questa mano è stata ricominciata da capo dopo un'interruzione? */
+function ripManoRigiocata(n) { return RIP_RIGIOCATE.indexOf(n) >= 0 ? 1 : 0; }
 
 /* ------------------------ Rigioco della mano --------------------------- */
 
@@ -3462,6 +3509,76 @@ function ripProssimaCarta(mano) {
 
 /** Fine mano: da qui in poi si gioca dal vivo. */
 function ripFineMano() { if (ripMano()) RIPRESA = null; }
+
+/* ---------------------- Riepilogo della mano ripresa -------------------- */
+
+/**
+ * Dopo un'ora di distanza non ti ricordi più a che punto eri: chi aveva
+ * dichiarato cosa, quante prese ha già fatto, cosa è uscito. Il rigioco è
+ * istantaneo, quindi senza questa scheda ti ritroveresti a metà mano al buio.
+ * Compare una volta sola, appena il tavolo torna a chiedere qualcosa a
+ * qualcuno, e si chiude con un tocco.
+ */
+function ripSchedaRiepilogo() {
+  const carte = G.cardsPerHand;
+  let h = '<h1>Dov\'eri rimasto</h1>' +
+    '<p>Mano <b>' + (G.handIndex + 1) + '</b> di ' + HAND_SIZES.length + ' · ' + carte +
+    (carte === 1 ? ' carta' : ' carte') + ' · briscola <b>' + SUIT_INFO[G.trump].sym + ' ' +
+    SUIT_INFO[G.trump].name + '</b></p>';
+
+  h += '<table class="final"><thead><tr><th>Giocatore</th><th class="n">Dichiara</th>' +
+       '<th class="n">Fatte</th><th class="n">Gli serve</th></tr></thead><tbody>';
+  G.players.forEach(p => {
+    const b = p.bid;
+    let serve = '–', col = '';
+    if (b != null) {
+      if (p.tricks > b) { serve = 'sballato'; col = ' style="color:#ef6461"'; }
+      else if (p.tricks === b) { serve = 'ci siamo'; col = ' style="color:#5ad07a"'; }
+      else { const n = b - p.tricks; serve = n + (n === 1 ? ' presa' : ' prese'); }
+    }
+    h += '<tr class="' + (p.isHuman ? 'me' : '') + '"><td>' + p.name + '</td>' +
+         '<td class="n">' + (b == null ? '–' : b) + '</td>' +
+         '<td class="n">' + p.tricks + '</td>' +
+         '<td class="n"' + col + '>' + serve + '</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  if (G.trickLog.length) {
+    h += '<h3 class="riptit2">Prese già giocate</h3><div class="ripprese">';
+    G.trickLog.forEach(t => {
+      h += '<div class="riprow"><span class="ripn">' + t.n + '</span>' + t.detail + '</div>';
+    });
+    h += '</div>';
+  } else {
+    h += '<p class="sfidanota">Nessuna presa giocata: la mano è appena cominciata.</p>';
+  }
+
+  if (G.trick.plays.length) {
+    h += '<h3 class="riptit2">Sul tavolo adesso</h3><div class="ripprese"><div class="riprow">' +
+      G.trick.plays.map(pl => '<span class="pl">' + G.players[pl.player].name + ' ' +
+                              cardInline(pl.card, false) + '</span>').join(' ') +
+      '</div></div>';
+  }
+
+  h += '<div class="dbtns"><button class="btn primary" id="btnRipVia">Riprendi da qui</button></div>';
+  return h;
+}
+
+/** Mostra il riepilogo e aspetta il tocco. Non fa niente se non serve. */
+function ripPausaRiepilogo() {
+  if (!RIP_RIEPILOGO || ripAttiva()) return Promise.resolve();
+  RIP_RIEPILOGO = false;
+  return new Promise(res => {
+    const ov = document.getElementById('ovRip');
+    if (!ov) { res(); return; }
+    document.getElementById('ripBoxMano').innerHTML = ripSchedaRiepilogo();
+    ov.classList.remove('hidden');
+    document.getElementById('btnRipVia').onclick = () => {
+      ov.classList.add('hidden');
+      res();
+    };
+  });
+}
 
 /* ------------------------- Riepilogo per l'avvio ------------------------ */
 
@@ -3495,7 +3612,7 @@ function ripRiepilogo(s) {
  * non regge (aggiornamento del motore che ha cambiato le carte, salvataggio
  * corrotto) si torna alla schermata iniziale senza drammi.
  */
-async function riprendiPartita(s) {
+async function riprendiPartita(s, daCapo) {
   GEN++;
   const gen = GEN;
   abortPending();
@@ -3524,9 +3641,23 @@ async function riprendiPartita(s) {
   G.dealer = dealerOfHand(G.startDealer, s.handIndex);
   G.chooser = trumpChooserOf(G.dealer);
 
-  RIPRESA = { handIndex: s.handIndex, trump: s.trump || null,
-              bids: Array.isArray(s.bids) ? s.bids : [null, null, null, null, null],
-              giocate: s.giocate.slice(), i: 0 };
+  RIP_RIGIOCATE = Array.isArray(s.rigiocate) ? s.rigiocate.slice() : [];
+
+  if (daCapo) {
+    /* Si ricomincia la mano da zero: stesse carte, ma briscola, dichiarazioni
+       e giocate si rifanno. Sapendo già metà delle carte degli altri è un
+       vantaggio grosso, quindi la mano resta segnata nel registro e l'analisi
+       la salta: il punteggio di questa partita non è confrontabile. */
+    RIPRESA = null;
+    RIP_RIEPILOGO = false;
+    if (RIP_RIGIOCATE.indexOf(s.handIndex + 1) < 0) RIP_RIGIOCATE.push(s.handIndex + 1);
+  } else {
+    RIPRESA = { handIndex: s.handIndex, trump: s.trump || null,
+                bids: Array.isArray(s.bids) ? s.bids : [null, null, null, null, null],
+                giocate: s.giocate.slice(), i: 0 };
+    /* il riepilogo serve solo se c'è qualcosa da ricordare */
+    RIP_RIEPILOGO = s.giocate.length > 0 || s.trump != null;
+  }
 
   lbRiprendiPartita(s.registro, G.players, G.difficulty, s.handIndex);
   $('#ovEnd').classList.add('hidden');
@@ -3572,21 +3703,32 @@ function ripPreparaAvvio() {
   if ($('#inDiff') && s.livello) $('#inDiff').value = s.livello;
   box.classList.remove('hidden');
   box.className = 'ripresa';
+  /* La mano si può anche ricominciare da capo, ma sapendo già metà delle carte
+     degli altri non è più la stessa partita: il bottone c'è, con scritto cosa
+     comporta, e la mano finisce segnata nel registro. */
+  const avviata = s.giocate.length > 0 || s.trump != null;
   box.innerHTML =
     '<div class="riptit">Partita interrotta</div>' +
     '<div class="ripsub">' + r.titolo + '<br>' + r.dettaglio + '</div>' +
     '<div class="ripaz">' +
       '<button class="btn primary" id="btnRiprendi">Riprendi la partita</button>' +
+      (avviata ? '<button class="btn piccolo" id="btnRigioca">Rigioca la mano</button>' : '') +
       '<button class="btn piccolo" id="btnScarta">Scarta</button>' +
-    '</div>';
-  document.getElementById('btnRiprendi').onclick = () => {
+    '</div>' +
+    (avviata ? '<div class="ripnota">«Rigioca la mano» la ricomincia da capo con le stesse ' +
+               'carte: avendo già visto quelle uscite è un vantaggio, quindi resta segnata nel ' +
+               'registro e l\'analisi la salta.</div>' : '');
+  const via = daCapo => {
     G.speed = parseInt($('#selSpeed').value, 10);
     G.auto = $('#chkAuto').checked;
     G.debug = $('#chkDebug').checked;
     G.bluff = true;
     $('#selDiff').value = s.livello || 'esperto';
-    riprendiPartita(s);
+    riprendiPartita(s, daCapo);
   };
+  document.getElementById('btnRiprendi').onclick = () => via(false);
+  const rig = document.getElementById('btnRigioca');
+  if (rig) rig.onclick = () => via(true);
   document.getElementById('btnScarta').onclick = () => {
     ripCancella();
     box.classList.add('hidden');
@@ -3783,11 +3925,15 @@ function analizzaPartita(g) {
   const io = g.giocatori.findIndex(p => p.umano);
   if (io < 0) return null;
   const righe = [];
-  let costoDich = 0, perditaGioco = 0, attesi = 0, centrate = 0, valide = 0;
+  let costoDich = 0, perditaGioco = 0, attesi = 0, centrate = 0, valide = 0, rigiocate = 0;
 
   g.mani.forEach(h => {
     const e = h.esito;
     if (!e || !h.prese.length) return;
+    /* Mano ricominciata da capo dopo un'interruzione: chi l'ha rigiocata aveva
+       già visto metà delle carte degli altri, quindi non dice niente né sulla
+       bravura né sulla fortuna. Fuori dal conto. */
+    if (h.rigiocata) { rigiocate++; return; }
     const cph = h.carte, trump = AN_NOME2KEY[h.briscolaSeme || h.briscola];
     if (!trump) return;
     const mia = anCarteDi(h, io);
@@ -3831,7 +3977,8 @@ function analizzaPartita(g) {
     else if (x.verdetto === 'informazione') malasorte += 0.35;
   });
   const sfortuna = Math.max(1, Math.min(10, Math.round(5.5 + malasorte)));
-  return { righe, costoDich, perditaGioco, attesi, centrate, mani: valide, abilita, sfortuna };
+  return { righe, costoDich, perditaGioco, attesi, centrate, mani: valide,
+           abilita, sfortuna, rigiocate };
 }
 /* ==========================================================================
    CLAG — Test interni + avvio
